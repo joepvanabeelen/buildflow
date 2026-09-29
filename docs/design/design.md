@@ -16,7 +16,7 @@ assets/previews/*.png      screenshots van de voorbeeldrun
 voorbeeld/…                momentopnames van de viewer per stop en de echte rapporten van de voorbeeldrun
 ```
 
-Waar deze map in de repo komt (root of `docs/` voor GitHub Pages) beslist het plan. Het prototype staat in `docs/design/prototype/index.html`.
+De site staat in de root van de repo (`index.html` en `assets/`), met een lege `.nojekyll` ernaast voor GitHub Pages. Het prototype staat in `docs/design/prototype/index.html`.
 
 Een nieuwe stijl verzinnen is niet de bedoeling. Elke kleur, maat, radius en schaduw hieronder staat letterlijk in de viewer. Waar de site iets nieuws nodig heeft, is dat opgebouwd uit bestaande tokens en componenten, en dat staat er dan bij.
 
@@ -216,7 +216,7 @@ Wit en `--vlak` wisselen elkaar af, zoals in de viewer. De enige zwarte sectie i
 ```html
 <a class="overslaan" href="#inhoud">Naar de inhoud</a>
 <div class="topbalk"><div class="wrap">
-  <span>buildflow · <b>v1.0.0</b></span>
+  <span>buildflow · <b data-release="versie">v1.0.0</b></span>
   <span class="upd">MIT-licentie · werkt in Claude Code</span>
 </div></div>
 <header class="header"><div class="wrap">
@@ -230,7 +230,7 @@ Wit en `--vlak` wisselen elkaar af, zoals in de viewer. De enige zwarte sectie i
 <main id="inhoud">…</main>
 ```
 
-Dit is de header van de viewer, met de phase-pil vervangen door een downloadknop. Het versienummer in de topbalk komt uit het releasescript.
+Dit is de header van de viewer, met de phase-pil vervangen door een downloadknop. Het versienummer in de topbalk komt uit het releasescript (`data-release="versie"`, zie Download).
 
 Nieuwe klassen in de schil:
 
@@ -274,7 +274,7 @@ Standen van de header:
 </div></section>
 ```
 
-Dit is de hero van de viewer. Links staan de titel met `.mark` en de lead. Rechts staat de `.volgende`-kaart, die in de viewer de volgende stap toont en hier de eerste. Onder de hero staat de `.stepper` met de zes fases, als voorproefje van de sectie "Hoe het werkt". De stappen zonder stop krijgen hier `.done`, zodat de balk zwart is, en de stops krijgen een gele `.stop`-markering (zie hieronder). In `.volgende` staat de kopieerknop van `.code` boven het commando, zie bij Installeren.
+Dit is de hero van de viewer. Links staan de titel met `.mark` en de lead. De lead noemt de gates zoals ze echt lopen: de tests en de review altijd, de UI-check tegen het prototype en de controle van de documentatie alleen als er iets op het scherm of in de docs verandert. Rechts staat de `.volgende`-kaart, die in de viewer de volgende stap toont en hier de eerste. Onder de hero staat de `.stepper` met de zes fases, als voorproefje van de sectie "Hoe het werkt". De stappen zonder stop krijgen hier `.done`, zodat de balk zwart is, en de stops krijgen een gele `.stop`-markering (zie hieronder). In `.volgende` staat de kopieerknop van `.code` boven het commando, zie bij Installeren.
 
 Nieuw zijn `.pillen` en `.knoppen`. `.pillen` is een flexrij met pillen (`display:flex; flex-wrap:wrap; gap:6px; margin-top:18px`). `.knoppen` doet hetzelfde voor knoppen (`gap:10px; margin-top:22px`). Onder 640px worden de knoppen in `.knoppen` volle breedte (`flex:1 1 100%; justify-content:center`), zodat ze op een telefoon makkelijk te raken zijn.
 
@@ -439,7 +439,7 @@ Nieuwe klassen:
 
 De `.toast` krijgt op de site `role="status"` en `aria-live="polite"`, zodat een schermlezer de bevestiging ook hoort.
 
-Naast de stappen staat, in een hergebruikte `.hero-grid`, een klein `.kaart`-blok met wat je nodig hebt: Claude Code, `python3` 3.9 of nieuwer (alleen de standaardbibliotheek), git, en voor de UI-gate een browsertool (Playwright MCP of Claude in Chrome). Een tweede installatievariant (in het project zelf onder `.claude/skills/buildflow/`) komt in een `details.ctx` eronder, dicht, zodat de standaardroute kort blijft.
+Naast de stappen staat, in een hergebruikte `.hero-grid`, een klein `.kaart`-blok met wat je nodig hebt: Claude Code, `python3` 3.9 of nieuwer (alleen de standaardbibliotheek), git, en voor de UI-gate een browsertool (Playwright MCP of Claude in Chrome). Een tweede installatievariant (in het project zelf onder `.claude/skills/buildflow/`) komt in een `details.ctx` eronder, dicht, zodat de standaardroute kort blijft. Die variant downloadt de zip met dezelfde `curl` als stap 1, maar dan in de projectmap, pakt hem uit met `unzip -o buildflow.zip -d .claude/skills`, ruimt hem op met `rm buildflow.zip` en draait daarna `.claude/skills/buildflow/scripts/bf.py doctor` vanuit de projectmap. Zo hangt de variant niet af van waar je browser downloads neerzet.
 
 ### Download
 
@@ -459,11 +459,13 @@ De zwarte sectie.
 </div></section>
 ```
 
-`.download` is een kaart op zwart: `border:2px solid var(--accent); border-radius:var(--radius); padding:clamp(18px,3vw,28px)`. Het is de `.volgende`-kaart in negatief. Op zwart valt een gele schaduw weg, dus hier doet een gele rand hetzelfde werk. De `.kpis` erin tonen versie, datum en grootte, met de donkere KPI-stijl van de viewer. Omdat `.kpi .w` niet afbreekt, gebruikt `.download .kpis` een eigen raster `repeat(auto-fill,minmax(220px,1fr))` in plaats van de 7 kolommen, en `.download .kpi .w` een iets kleinere maat (`clamp(1.2rem,1rem + .6vw,1.5rem)`); anders liep een datum tussen 1100 en 1500px tegen de rand van de tegel. De waarden staan in de HTML met `data-release="versie|datum|grootte"`, zodat het releasescript weet wat het moet invullen.
+`.download` is een kaart op zwart: `border:2px solid var(--accent); border-radius:var(--radius); padding:clamp(18px,3vw,28px)`. Het is de `.volgende`-kaart in negatief. Op zwart valt een gele schaduw weg, dus hier doet een gele rand hetzelfde werk. De `.kpis` erin tonen versie, datum en grootte, met de labels "versie", "uitgebracht" en "grootte van de zip" en de donkere KPI-stijl van de viewer. Omdat `.kpi .w` niet afbreekt, gebruikt `.download .kpis` een eigen raster `repeat(auto-fill,minmax(220px,1fr))` in plaats van de 7 kolommen, en `.download .kpi .w` een iets kleinere maat (`clamp(1.2rem,1rem + .6vw,1.5rem)`); anders liep een datum tussen 1100 en 1500px tegen de rand van de tegel. De waarden staan in de HTML met `data-release="versie|datum|grootte"`, zodat het releasescript weet wat het moet invullen.
 
 `.knop.rand-licht` is nieuw en nodig omdat `.knop.rand` een zwarte lijn heeft die op zwart wegvalt: `background:transparent; color:#fff; box-shadow:inset 0 0 0 2px var(--zwart-grijs)`. Bij hover wordt de lijn `--accent`.
 
-Versie, datum en grootte komen uit het releasescript. In de HTML staan ze als gewone tekst, zonder API-call naar GitHub. De downloadlink is `releases/latest/download/buildflow.zip` en hoeft dus niet mee te veranderen.
+Versie, datum en grootte komen uit het releasescript. In de HTML staan ze als gewone tekst, zonder API-call naar GitHub.
+
+De haken voor het releasescript zijn elementen met een `data-release`-attribuut. `data-release="versie"` staat op drie plekken: de `b` in de topbalk, de versietegel in `.download` en een `span` in de footer. Die drie moeten dezelfde tekst tonen; de tests controleren dat. `data-release="datum"` en `data-release="grootte"` staan alleen in de downloadkaart. Zolang er geen releasescript is, staat er "volgt" in plaats van een verzonnen datum of grootte; de tests controleren dat daar dan geen cijfer in staat. In het prototype staan voorbeeldwaarden met een `.proto-noot` erbij. De downloadlink is `releases/latest/download/buildflow.zip` en hoeft dus niet mee te veranderen.
 
 ### Vragen en beperkingen
 
@@ -489,7 +491,7 @@ De `.footer` uit de viewer, met links erin.
 ```html
 <footer class="footer"><div class="wrap">
   <span>buildflow · checkpoints en gates voor Claude Code, naar Shopify's Helix</span>
-  <span><a href="…">GitHub</a> · <a href="…/LICENSE">MIT-licentie</a> · v1.0.0</span>
+  <span><a href="…">GitHub</a> · <a href="…/LICENSE">MIT-licentie</a> · <span data-release="versie">v1.0.0</span></span>
 </div></footer>
 ```
 
@@ -592,3 +594,4 @@ Er is geen donkere modus en ook geen `color-scheme`-declaratie. Dat is bewust of
 ## Wijzigingen
 
 - 2026-09-29 · Na de eerste design-review verwerkt: zip-indeling als eis voor het releasescript, `unzip -o` overal, downloadlink zonder versie, hervatten na een onderbreking, voorbeeldrun als momentopnames van de viewer, drie of vier stops, kopieerknop boven het commando in `.volgende` en op smal scherm, `.vraag summary` zonder afbreken, `.fase`-raster van vier kolommen, gates als `h4`, `.proza`/`.sub-kop`, eigen KPI-raster in `.download`, 44px-links op mobiel, succestoast op mobiel alleen voor schermlezers, favicon, printen met `beforeprint`.
+- 2026-09-29 · Na de bouw van de pagina (cp01) bijgewerkt naar wat er staat: de site in de root van de repo, de lead met de gates zoals ze echt lopen, de teaminstallatie met `curl` in de projectmap en `rm buildflow.zip`, de labels "uitgebracht" en "grootte van de zip" in de downloadkaart, en de `data-release`-haken in topbalk, downloadkaart en footer.

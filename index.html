@@ -1,0 +1,426 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light">
+<title>buildflow · grote features bouwen in Claude Code</title>
+<meta name="description" content="buildflow is een skill voor Claude Code die een grote feature opknipt in kleine checkpoints, elk met vaste gates. Uitleg, handleiding, installatie en download.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%277%27 fill=%27%23141412%27/%3E%3Crect x=%277%27 y=%2718%27 width=%2718%27 height=%277%27 fill=%27%23FFCE1F%27/%3E%3Ctext x=%2716%27 y=%2724%27 text-anchor=%27middle%27 font-family=%27Arial,sans-serif%27 font-weight=%27900%27 font-size=%2722%27 fill=%27%23fff%27%3Eb%3C/text%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@100..125,400..900&family=Source+Sans+3:ital,wght@0,400;0,600;0,700;1,400&display=swap">
+<link rel="stylesheet" href="assets/site.css">
+</head>
+<body>
+<a class="knop zwart overslaan" href="#inhoud">Naar de inhoud</a>
+
+<div class="topbalk"><div class="wrap">
+  <span>buildflow · <b data-release="versie">v1.0.0</b></span>
+  <span class="upd">MIT-licentie · werkt in Claude Code</span>
+</div></div>
+<header class="header"><div class="wrap">
+  <a class="woordmerk" href="#top" aria-label="buildflow, naar boven"><b>build</b><span>flow</span></a>
+  <nav class="nav" aria-label="Secties">
+    <a href="#waarde">Waarde</a><a href="#werking">Hoe het werkt</a><a href="#handleiding">Handleiding</a>
+    <a href="#voorbeeld">Voorbeeld</a><a href="#installeren">Installeren</a><a href="#vragen">Vragen</a>
+  </nav>
+  <a class="knop klein kopknop" href="#download">Download</a>
+</div></header>
+
+<main id="inhoud">
+
+<!-- ============ HERO ============ -->
+<section class="hero" id="top"><div class="wrap">
+  <div class="hero-grid">
+    <div>
+      <span class="eyebrow">Skill voor Claude Code</span>
+      <h1>Grote features bouwen in <span class="mark">stappen die je kunt controleren</span></h1>
+      <p class="lead">buildflow laat Claude Code een grote feature opknippen in kleine checkpoints. Elke checkpoint moet langs vaste gates: de tests en een review door een agent die ervan uitgaat dat de code fout is. Verandert er iets op het scherm of in de docs, dan komen daar een UI-check tegen het prototype en een controle van de documentatie bij. Bij drie of vier stops beslis jij mee, afhankelijk van of er iets zichtbaars verandert; met <code>--brief</code> of <code>--auto</code> zijn het er minder. Daartussen werkt Claude door.</p>
+      <div class="pillen"><span class="pil rand">Claude Code</span><span class="pil rand">python3</span><span class="pil rand">MIT</span></div>
+      <p class="knoppen"><a class="knop" href="#download">Download de zip</a><a class="knop rand" href="#handleiding">Zo werkt het</a></p>
+    </div>
+    <div class="volgende">
+      <span class="eyebrow">Zo begin je</span>
+      <p>Pak de zip uit in je skills-map en start in Claude Code:</p>
+      <div class="code"><pre><code>/buildflow &lt;wat je wilt bouwen&gt;</code></pre></div>
+      <p class="klein grijs noot">Doe dat in de map van je project, met een schone git-tree. buildflow maakt zelf een branch <code>buildflow/&lt;slug&gt;</code> aan, met een korte naam voor de feature als slug.</p>
+    </div>
+  </div>
+  <ol class="stepper" aria-label="De fases van een run">
+    <li class="stap done"><b>Context</b><span>Claude leest je project</span></li>
+    <li class="stap stop"><b>Brief</b><span>jij keurt goed</span> <span class="pil geel">stop</span></li>
+    <li class="stap stop"><b>Design</b><span>alleen bij UI</span> <span class="pil geel">stop</span></li>
+    <li class="stap stop"><b>Plan</b><span>jij keurt goed</span> <span class="pil geel">stop</span></li>
+    <li class="stap done"><b>Bouwen</b><span>checkpoints door de gates</span></li>
+    <li class="stap stop"><b>Review</b><span>jij test en accepteert</span> <span class="pil geel">stop</span></li>
+  </ol>
+</div></section>
+
+<!-- ============ WAARDE ============ -->
+<section class="sectie vlak" id="waarde"><div class="wrap">
+  <div class="kop"><div><span class="eyebrow">Waarom</span><h2>Wat je eraan hebt</h2></div>
+    <p class="grijs">Voor een bugfix of een kleine aanpassing heb je dit niet nodig. Het gaat lonen bij features waar je normaal een middag of langer mee bezig bent, en waar je halverwege niet meer precies weet wat er allemaal is aangepast.</p></div>
+  <div class="kpis boven">
+    <div class="kpi"><span class="w">3–4</span><span class="l">stops waar Claude op jou wacht, met --brief of --auto minder</span></div>
+    <div class="kpi"><span class="w">4</span><span class="l">gates per checkpoint, twee alleen als ze nodig zijn</span></div>
+    <div class="kpi"><span class="w">4–12</span><span class="l">checkpoints, meestal</span></div>
+    <div class="kpi"><span class="w">0</span><span class="l">pip-pakketten nodig</span></div>
+  </div>
+  <div class="twee">
+    <article class="kaart">
+      <h3>Eerst afspreken wat je bouwt</h3>
+      <p>Voordat er iets ontworpen of gepland wordt, praat Claude met je over het probleem, de gebruikers, wanneer het geslaagd is en wat er buiten de scope valt. Je krijgt twee of drie aanpakken met een advies. Vragen die de code kan beantwoorden, stelt hij niet. Het resultaat is <code>brief.md</code>, en elke agent leest die daarna als het contract.</p>
+    </article>
+    <article class="kaart">
+      <h3>Een checkpoint is pas klaar met bewijs</h3>
+      <p>Tests worden eerst geschreven en moeten eerst falen, om de goede reden. Pas dan komt de code. Een gate gaat alleen op groen met testaantallen, screenshots of het oordeel van een reviewer erbij, en het script dat de run bijhoudt weigert stappen die niet mogen, zoals checkpoint 3 starten voordat 2 klaar is.</p>
+    </article>
+    <article class="kaart">
+      <h3>Niemand keurt zijn eigen werk goed</h3>
+      <p>De code-review doet een agent die aanneemt dat de code fout is. Na elke fix kijkt een nieuwe reviewer, met de vorige bevindingen erbij. De UI-reviewers zien alleen het goedgekeurde prototype en de draaiende app, niet de instructies van het project. Ze beoordelen wat er op het scherm staat.</p>
+    </article>
+    <article class="kaart">
+      <h3>De hoofdsessie schrijft zelf geen code</h3>
+      <p>Eén orchestrator houdt de regie en geeft elke klus aan een subagent met een schone context. Zo blijft elke agent bij zijn taak, ook als de feature uren duurt, en loopt de context van de hoofdsessie niet vol met code die hij niet hoeft te zien.</p>
+    </article>
+    <article class="kaart">
+      <h3>Je ziet wat het kostte en waar de tijd zat</h3>
+      <p>Na elke checkpoint krijg je een rapport: per gate het resultaat, het aantal pogingen, de bevindingen, de duur en de kosten, uitgesplitst per rol, per checkpoint en per model. Het bedrag is een API-equivalent en niet je rekening. Hoe dat zit, staat bij <a href="#vraag-kosten">wat een run kost</a>.</p>
+    </article>
+    <article class="kaart">
+      <h3>Alles in één bestand dat je kunt doorsturen</h3>
+      <p>De viewer is één HTML-bestand met het plan, de voortgang per gate, de kosten en de learnings. Hij werkt op je telefoon, je kunt hem printen naar PDF en je stuurt hem door zonder dat er iets ontbreekt.</p>
+    </article>
+  </div>
+</div></section>
+
+<!-- ============ WERKING ============ -->
+<section class="sectie" id="werking"><div class="wrap">
+  <div class="kop"><div><span class="eyebrow">Hoe het werkt</span><h2>Fases, stops en gates</h2></div>
+    <p class="grijs">Tussen de stops werkt Claude door zonder op je te wachten. Bij de gele stops ligt de beslissing bij jou. De designstop komt er alleen bij als de feature iets zichtbaars verandert.</p></div>
+  <ol class="stepper los" aria-label="De fases van een run">
+    <li class="stap done"><b>Context</b><span>projectprofiel en wat de feature raakt</span></li>
+    <li class="stap stop"><b>Brief</b><span>brainstorm, dan brief.md</span> <span class="pil geel">stop</span></li>
+    <li class="stap stop"><b>Design</b><span>design.md en prototype, alleen bij UI</span> <span class="pil geel">stop</span></li>
+    <li class="stap stop"><b>Plan</b><span>checkpoints en testplan</span> <span class="pil geel">stop</span></li>
+    <li class="stap done"><b>Bouwen</b><span>elke checkpoint door de gates, daarna de docs</span></li>
+    <li class="stap stop"><b>Review</b><span>jij probeert de feature</span> <span class="pil geel">stop</span></li>
+  </ol>
+
+  <h3 class="sub-kop">De vier gates per checkpoint</h3>
+  <div class="cps">
+    <div class="kaart poort"><span class="nr">1</span><div><h4>Gedrag</h4>
+      <p>De geplande tests worden eerst geschreven en moeten dan falen, omdat het gedrag nog ontbreekt en niet door een typfout of een kapotte import. Daarna schrijft een agent code tot ze slagen, zonder de tests aan te passen. De tests van eerdere checkpoints moeten groen blijven.</p></div></div>
+    <div class="kaart poort"><span class="nr">2</span><div><h4>UI <span class="chip">alleen als het zichtbaar is</span></h4>
+      <p>Twee reviewers vergelijken de draaiende app met het goedgekeurde prototype, de een op uiterlijk en de ander op gedrag. Elk verschil krijgt een ernst en een plek op het scherm. Kwam de stand van het scherm niet overeen met de referentie, dan telt de vergelijking niet en doen ze hem opnieuw. Zolang er een blocker of high openstaat, gaat de gate niet door.</p></div></div>
+    <div class="kaart poort"><span class="nr">3</span><div><h4>Review</h4>
+      <p>Een adversary neemt de diff door en probeert te bewijzen dat hij fout is. Een fixer lost de bevindingen op, of laat met bewijs zien waarom een bevinding niet klopt. Dan draaien de tests opnieuw en kijkt een nieuwe reviewer. Is er na vier rondes nog geen akkoord, dan pauzeert de run en krijg jij de vraag.</p></div></div>
+    <div class="kaart poort"><span class="nr">4</span><div><h4>Docs <span class="chip">alleen als er docs veranderen</span></h4>
+      <p>Een agent werkt de bestaande documentatie bij, op de plek en in de vorm die je project al gebruikt. Een tweede agent controleert elke gewijzigde bewering tegen de code. Na de laatste checkpoint volgt nog één docs-gate over de feature als geheel.</p></div></div>
+  </div>
+
+  <h3 class="sub-kop">Waarom het zich aan de regels houdt</h3>
+  <div class="proza">
+    <p>Afspraken in een prompt zijn geen garantie, dus buildflow dwingt ze op twee manieren af. Het script <code>bf.py</code> houdt de stand van de run bij en weigert stappen die niet mogen: bouwen zonder goedgekeurd plan, een gate passeren terwijl een eerdere nog openstaat, gedrag goedkeuren met falende tests. En een Stop-hook laat Claude zijn beurt niet afsluiten zolang er in de bouwfase gates openstaan.</p>
+    <p>Die hook is niet blind. Wachten op subagents die op de achtergrond lopen mag gewoon, en als hij een paar keer achter elkaar blokkeert zonder dat er iets verandert, geeft hij het op in plaats van Claude eindeloos rond te laten draaien.</p>
+    <p>Het idee komt van Shopify, dat de methode beschrijft in <a class="tekstlink" href="https://shopify.engineering/helix" target="_blank" rel="noopener">Helix</a>, en van <a class="tekstlink" href="https://youtu.be/bBMp5tLxShQ" target="_blank" rel="noopener">de uitwerking van AI Labs</a> op YouTube. buildflow is een eigen uitwerking van dat idee, zonder code van Shopify. De brief, de designfase, de rapportage van kosten en tijd en het projectprofiel dat features delen, zitten in geen van beide. De UI-review doen hier twee Claude-subagents, waar Helix Gemini gebruikt.</p>
+  </div>
+</div></section>
+
+<!-- ============ HANDLEIDING ============ -->
+<section class="sectie vlak" id="handleiding"><div class="wrap">
+  <div class="kop"><div><span class="eyebrow">Handleiding</span><h2>Stap voor stap</h2></div>
+    <p class="grijs">Per fase wat je krijgt en wat er van jou verwacht wordt. Bij een gele stop wacht Claude tot jij iets zegt.</p></div>
+  <div class="cps">
+
+    <details class="cp fase" id="fase-context" open>
+      <summary><span class="nr">0</span>
+        <div><h3>Context</h3><div class="sub">Claude leest je project voordat hij iets vraagt</div></div>
+      </summary>
+      <div class="cp-body">
+        <div class="twee">
+          <div class="blok krijg"><h4>Wat je krijgt</h4><ul class="check">
+            <li><code>.buildflow/context.md</code>, een profiel van je project: stack, conventies, tests, hoe je de app draait en het bestaande design. Volgende features gebruiken het opnieuw.</li>
+            <li><code>.buildflow/&lt;slug&gt;/context-feature.md</code>, wat deze feature in de code raakt en welke bestaande features je kunt navolgen.</li>
+            <li>Een nulmeting op de achtergrond: installeren, bouwen, tests draaien, dev-server starten.</li>
+          </ul></div>
+          <div class="blok doe"><h4>Wat je doet</h4>
+            <p>Open Claude Code in de map van je project en typ <code>/buildflow</code> met een zin of een alinea over wat je wilt bouwen. Zorg dat je git-tree schoon is, anders vraagt buildflow eerst wat je ermee wilt.</p>
+            <p>Verder niets. Tests die nu al falen, lost Claude niet stilletjes op. Die komen als randvoorwaarde in de brief.</p></div>
+        </div>
+      </div>
+    </details>
+
+    <details class="cp fase" id="fase-brief">
+      <summary><span class="nr">1</span>
+        <div><h3>Brief</h3><div class="sub">Samen het probleem en de aanpak scherp krijgen</div></div>
+        <span class="pil geel">stop</span>
+      </summary>
+      <div class="cp-body">
+        <div class="twee">
+          <div class="blok krijg"><h4>Wat je krijgt</h4><ul class="check">
+            <li>Vragen in korte rondes, steeds met een aanbevolen antwoord erbij.</li>
+            <li><code>brief.md</code> met het probleem, de gebruikers, wanneer het geslaagd is, wat er wel en niet in zit, de gekozen aanpak en de risico's.</li>
+            <li>De viewer met de brief, en een samenvatting van vijf regels in de chat.</li>
+          </ul></div>
+          <div class="blok doe"><h4>Wat je doet</h4>
+            <p>Beantwoord de vragen. Meestal zijn het twee of drie rondes. Lees daarna de brief in de viewer en kijk of het probleem, de scope en de aanpak kloppen. Wat anders moet, zeg je in de chat of typ je in het feedbackvak van de viewer. Is het goed, zeg dan "akkoord".</p>
+            <p>Heb je al een uitgewerkte spec, start dan met <code>--brief spec.md</code>. Claude checkt hem op gaten en slaat het gesprek over.</p></div>
+        </div>
+        <a class="preview klein" href="voorbeeld/viewer-brief.html" target="_blank" rel="noopener">
+          <span class="leeg"><code>viewer-brief.html</code><span class="klein">Nog geen afbeelding</span></span>
+          <span class="preview-tekst"><span class="eyebrow">viewer-brief.html</span><b>De viewer bij de briefstop</b><span class="tekstlink">Open het bestand ↗</span></span>
+        </a>
+      </div>
+    </details>
+
+    <details class="cp fase" id="fase-design">
+      <summary><span class="nr">2</span>
+        <div><h3>Design</h3><div class="sub">Alleen als de feature iets verandert wat gebruikers zien</div></div>
+        <span class="pil geel">stop</span>
+      </summary>
+      <div class="cp-body">
+        <div class="twee">
+          <div class="blok krijg"><h4>Wat je krijgt</h4><ul class="check">
+            <li><code>design.md</code> in de docs van je project, aangevuld waar hij al bestaat.</li>
+            <li>Prototypepagina's met alle states uit de brief, gebouwd met je eigen front-end: Storybook als je dat hebt, anders statische pagina's met de echte CSS van je app.</li>
+            <li>Een componentkaart: welk bestaand component elk element bouwt, en wat er nieuw moet.</li>
+            <li>De viewer met het prototype erin.</li>
+          </ul></div>
+          <div class="blok doe"><h4>Wat je doet</h4>
+            <p>Klik door het prototype en zijn states, en kijk of het eruitziet en werkt zoals je wilt. Geef wijzigingen door of zeg "akkoord". Het design wordt daarna met de feature gecommit, en de UI-gate vergelijkt later alles hiermee.</p>
+            <p>Bij backend-werk, of als er al een goedgekeurd ontwerp is, slaat buildflow deze stap over en zegt waarom.</p></div>
+        </div>
+        <a class="preview klein" href="voorbeeld/viewer-design.html" target="_blank" rel="noopener">
+          <span class="leeg"><code>viewer-design.html</code><span class="klein">Nog geen afbeelding</span></span>
+          <span class="preview-tekst"><span class="eyebrow">viewer-design.html</span><b>De viewer bij de designstop</b><span class="tekstlink">Open het bestand ↗</span></span>
+        </a>
+      </div>
+    </details>
+
+    <details class="cp fase" id="fase-plan">
+      <summary><span class="nr">3</span>
+        <div><h3>Plan</h3><div class="sub">De feature opgeknipt in kleine checkpoints</div></div>
+        <span class="pil geel">stop</span>
+      </summary>
+      <div class="cp-body">
+        <div class="twee">
+          <div class="blok krijg"><h4>Wat je krijgt</h4><ul class="check">
+            <li>Een plan van meestal 4 tot 12 checkpoints, van simpel naar complex, elk met wat "klaar" betekent.</li>
+            <li>Per checkpoint de tests die dat bepalen.</li>
+            <li>In de chat de checkpoints op een regel elk, welke een UI-gate krijgen, en de open vragen en aannames.</li>
+          </ul></div>
+          <div class="blok doe"><h4>Wat je doet</h4>
+            <p>Loop de checkpoints na. Je kunt per checkpoint een opmerking typen in de viewer en alles in één keer kopiëren met "Kopieer feedback voor Claude", of gewoon in de chat antwoorden. De planner past het plan aan en je ziet het opnieuw.</p>
+            <p>Pas na jouw akkoord wordt er iets gebouwd.</p></div>
+        </div>
+        <a class="preview klein" href="voorbeeld/viewer-plan.html" target="_blank" rel="noopener">
+          <span class="leeg"><code>viewer-plan.html</code><span class="klein">Nog geen afbeelding</span></span>
+          <span class="preview-tekst"><span class="eyebrow">viewer-plan.html</span><b>De viewer bij de planstop</b><span class="tekstlink">Open het bestand ↗</span></span>
+        </a>
+      </div>
+    </details>
+
+    <details class="cp fase" id="fase-bouwen">
+      <summary><span class="nr">4</span>
+        <div><h3>Bouwen</h3><div class="sub">Checkpoint voor checkpoint door de gates</div></div>
+      </summary>
+      <div class="cp-body">
+        <div class="twee">
+          <div class="blok krijg"><h4>Wat je krijgt</h4><ul class="check">
+            <li>Een commit per checkpoint.</li>
+            <li>Na elke checkpoint een rapport in de chat en als bestand in <code>.buildflow/&lt;slug&gt;/reports/</code>: per gate het resultaat, de pogingen, tests, bevindingen, duur en kosten.</li>
+            <li>Een viewer die steeds de laatste stand laat zien.</li>
+            <li>Na de laatste checkpoint een docs-gate over de hele feature, zodat design.md en het prototype kloppen met wat er echt gebouwd is.</li>
+          </ul></div>
+          <div class="blok doe"><h4>Wat je doet</h4>
+            <p>In principe niets. Na elk rapport gaat Claude meteen door met de volgende checkpoint. Wil je live meekijken, vraag dan om <code>bf.py serve --open</code>. Dat geeft een viewer die zichzelf elke paar seconden ververst.</p>
+            <p>Loopt een gate vier keer vast, dan pauzeert de run en krijg je één concrete vraag met een advies.</p>
+            <p id="hervatten">Stopt Claude door een rate limit terwijl de sessie nog openstaat, dan is "ga verder" genoeg. Na een crash, een dichtgeklapte laptop of in een nieuwe sessie typ je altijd opnieuw <code>/buildflow</code>. Die ziet dat er een run loopt en vraagt of je hem wilt hervatten, en zet meteen de hooks en rechten van de skill weer aan. Wil je het oude gesprek terug, open het dan met <code>claude --continue</code> of <code>claude --resume</code>, maar typ daarna nog steeds <code>/buildflow</code>. In alle gevallen kijkt Claude eerst wat de stand is en doet hij een onderbroken stap opnieuw, in plaats van een resultaat aan te nemen dat niemand heeft gezien.</p></div>
+        </div>
+        <a class="preview klein" href="voorbeeld/cp01.html" target="_blank" rel="noopener">
+          <span class="leeg"><code>cp01.html</code><span class="klein">Nog geen afbeelding</span></span>
+          <span class="preview-tekst"><span class="eyebrow">cp01.html</span><b>Rapport van checkpoint 1</b><span class="tekstlink">Open het bestand ↗</span></span>
+        </a>
+      </div>
+    </details>
+
+    <details class="cp fase" id="fase-review">
+      <summary><span class="nr">5</span>
+        <div><h3>Review</h3><div class="sub">Jij test de feature en accepteert of geeft feedback</div></div>
+        <span class="pil geel">stop</span>
+      </summary>
+      <div class="cp-body">
+        <div class="twee">
+          <div class="blok krijg"><h4>Wat je krijgt</h4><ul class="check">
+            <li>Het eindrapport, <code>final.html</code>, met de hele feature bij elkaar.</li>
+            <li>In de chat precies hoe je de feature probeert: het commando, de URL, een testaccount en waar je op klikt.</li>
+          </ul></div>
+          <div class="blok doe"><h4>Wat je doet</h4>
+            <p>Probeer de feature zelf. Wat je anders wilt, wordt een paar nieuwe kleine checkpoints die door dezelfde gates gaan, plus een regel in <code>learnings.md</code> die elke agent voortaan als eerste leest. Verandert je feedback het probleem zelf, dan past Claude eerst de brief aan.</p>
+            <p>Ben je tevreden, zeg dan dat je het accepteert. Claude sluit de run af en biedt aan een PR te openen en het eindrapport als private Artifact te publiceren.</p></div>
+        </div>
+        <a class="preview klein" href="voorbeeld/final.html" target="_blank" rel="noopener">
+          <span class="leeg"><code>final.html</code><span class="klein">Nog geen afbeelding</span></span>
+          <span class="preview-tekst"><span class="eyebrow">final.html</span><b>Het eindrapport</b><span class="tekstlink">Open het bestand ↗</span></span>
+        </a>
+      </div>
+    </details>
+  </div>
+  <p class="proza na" id="auto">Wil je niet bij elke stop zelf goedkeuren, start dan met <code>--auto</code>. Claude laat de brief, het design en het plan wel zien, maar keurt ze zelf goed. De gates blijven even streng. Er blijft dan één stop over: aan het eind test jij de feature.</p>
+</div></section>
+
+<!-- ============ VOORBEELD ============ -->
+<section class="sectie" id="voorbeeld"><div class="wrap">
+  <div class="kop"><div><span class="eyebrow">Voorbeeld</span><h2>Een run om door te klikken</h2></div>
+    <p class="grijs">Een verzonnen demofeature, gebouwd met buildflow zelf. De viewer is tijdens een run één bestand dat steeds wordt bijgewerkt. Hier zie je er momentopnames van bij elke stop, plus twee echte rapporten. Ze werken ook op je telefoon.</p></div>
+  <div class="previews">
+    <a class="preview" href="voorbeeld/viewer-plan.html" target="_blank" rel="noopener">
+      <span class="leeg"><code>viewer-plan.html</code><span class="klein">Nog geen afbeelding</span></span>
+      <span class="preview-tekst"><span class="eyebrow">viewer-plan.html</span><b>De viewer bij de planstop</b><span class="tekstlink">Open het bestand ↗</span></span>
+    </a>
+    <a class="preview" href="voorbeeld/viewer-brief.html" target="_blank" rel="noopener">
+      <span class="leeg"><code>viewer-brief.html</code><span class="klein">Nog geen afbeelding</span></span>
+      <span class="preview-tekst"><span class="eyebrow">viewer-brief.html</span><b>De viewer bij de briefstop</b><span class="tekstlink">Open het bestand ↗</span></span>
+    </a>
+    <a class="preview" href="voorbeeld/viewer-design.html" target="_blank" rel="noopener">
+      <span class="leeg"><code>viewer-design.html</code><span class="klein">Nog geen afbeelding</span></span>
+      <span class="preview-tekst"><span class="eyebrow">viewer-design.html</span><b>De viewer bij de designstop</b><span class="tekstlink">Open het bestand ↗</span></span>
+    </a>
+    <a class="preview" href="voorbeeld/cp01.html" target="_blank" rel="noopener">
+      <span class="leeg"><code>cp01.html</code><span class="klein">Nog geen afbeelding</span></span>
+      <span class="preview-tekst"><span class="eyebrow">cp01.html</span><b>Rapport van checkpoint 1</b><span class="tekstlink">Open het bestand ↗</span></span>
+    </a>
+    <a class="preview" href="voorbeeld/final.html" target="_blank" rel="noopener">
+      <span class="leeg"><code>final.html</code><span class="klein">Nog geen afbeelding</span></span>
+      <span class="preview-tekst"><span class="eyebrow">final.html</span><b>Het eindrapport</b><span class="tekstlink">Open het bestand ↗</span></span>
+    </a>
+  </div>
+</div></section>
+
+<!-- ============ INSTALLEREN ============ -->
+<section class="sectie vlak" id="installeren"><div class="wrap">
+  <div class="kop"><div><span class="eyebrow">Installeren</span><h2>Klaarzetten in vier stappen</h2></div>
+    <p class="grijs">Zo staat buildflow klaar voor al je projecten. Wil je hem in één project, bijvoorbeeld om met je team te delen, kijk dan onder de stappen.</p></div>
+  <div class="hero-grid">
+    <div>
+      <ol class="stappen">
+        <li><div><h3>Download de zip</h3>
+          <p>Met de knop bij <a href="#download">Download</a>, of in je terminal:</p>
+          <div class="code"><pre><code>curl -L -o buildflow.zip https://github.com/joepvanabeelen/buildflow-website/releases/latest/download/buildflow.zip</code></pre></div>
+        </div></li>
+        <li><div><h3>Pak hem uit in je skills-map</h3>
+          <div class="code"><pre><code>mkdir -p ~/.claude/skills
+unzip -o buildflow.zip -d ~/.claude/skills</code></pre></div>
+          <p>De zip bevat één map, <code>buildflow</code>, met daarin de skill en de LICENSE. Na het uitpakken staat alles dus in <code>~/.claude/skills/buildflow</code>. Laat de mappen <code>scripts</code> en <code>references</code> naast <code>SKILL.md</code> staan. De Stop-hook zoekt <code>scripts/gate_hook.py</code> precies op deze plek. Staat het ergens anders, dan doet de hook stilletjes niets en kan Claude tijdens het bouwen stoppen terwijl er nog gates openstaan.</p>
+        </div></li>
+        <li><div><h3>Kijk of het script draait</h3>
+          <div class="code"><pre><code>python3 ~/.claude/skills/buildflow/scripts/bf.py doctor</code></pre></div>
+          <p>Het script print de map van de skill, de projectmap, je Python-versie en de modellen waarvoor een prijs in <code>pricing.json</code> staat. Zolang er geen run is, eindigt het met "no active run". Meer controleert het niet.</p>
+        </div></li>
+        <li><div><h3>Start je eerste run</h3>
+          <p>Open Claude Code in je project en typ:</p>
+          <div class="code"><pre><code>/buildflow &lt;wat je wilt bouwen&gt;</code></pre></div>
+          <p>Zie je <code>/buildflow</code> niet, start dan een nieuwe sessie. Met <code>--brief spec.md</code> geef je een spec mee die je al had, <code>--lang nl</code> of <code>--lang en</code> kiest de taal van alles wat jij te lezen krijgt (zonder <code>--lang</code> neemt hij de taal waarin je schrijft), en <a href="#auto"><code>--auto</code></a> slaat de goedkeuringen over.</p>
+        </div></li>
+      </ol>
+    </div>
+    <aside class="kaart" aria-label="Wat je nodig hebt">
+      <h3>Wat je nodig hebt</h3>
+      <ul class="check">
+        <li>Claude Code</li>
+        <li>Python 3.9 of nieuwer, alleen de standaardbibliotheek. Je hoeft niets met pip te installeren.</li>
+        <li>git</li>
+        <li>Voor de UI-gate een browsertool in Claude Code: Playwright MCP of Claude in Chrome.</li>
+      </ul>
+    </aside>
+  </div>
+  <details class="ctx vraag install-extra">
+    <summary>In één project installeren, bijvoorbeeld voor je team</summary>
+    <div class="antwoord">
+      <p>Download de zip in de map van je project, net als bij stap 1, en pak hem uit in <code>.claude/skills</code>. Commit die map mee, dan werkt iedereen in het team met dezelfde versie. De zip zelf kun je daarna weggooien.</p>
+      <div class="code"><pre><code>cd pad/naar/je-project
+curl -L -o buildflow.zip https://github.com/joepvanabeelen/buildflow-website/releases/latest/download/buildflow.zip
+mkdir -p .claude/skills
+unzip -o buildflow.zip -d .claude/skills
+rm buildflow.zip
+python3 .claude/skills/buildflow/scripts/bf.py doctor</code></pre></div>
+      <p>De Stop-hook kijkt eerst in <code>~/.claude/skills/buildflow</code> en daarna in <code>.claude/skills/buildflow</code> van het project. Staat buildflow op allebei, dan draait de hook dus het script uit je homemap.</p>
+    </div>
+  </details>
+</div></section>
+
+<!-- ============ DOWNLOAD ============ -->
+<section class="sectie zwart" id="download"><div class="wrap">
+  <div class="kop"><div><span class="eyebrow">Release</span><h2>Download</h2></div>
+    <p class="grijs">Een zip met één map, <code>buildflow</code>, met daarin de skill en de MIT-licentie. Pak hem uit zoals bij <a href="#installeren">Installeren</a> staat.</p></div>
+  <div class="download">
+    <div class="kpis">
+      <div class="kpi"><span class="w" data-release="versie">v1.0.0</span><span class="l">versie</span></div>
+      <div class="kpi"><span class="w" data-release="datum">volgt</span><span class="l">uitgebracht</span></div>
+      <div class="kpi"><span class="w" data-release="grootte">volgt</span><span class="l">grootte van de zip</span></div>
+    </div>
+    <p class="knoppen">
+      <a class="knop" href="https://github.com/joepvanabeelen/buildflow-website/releases/latest/download/buildflow.zip">Download buildflow.zip</a>
+      <a class="knop rand-licht" href="https://github.com/joepvanabeelen/buildflow-website/releases">Alle versies</a>
+    </p>
+    <p class="grijs klein voetnoot">MIT-licentie. De zip bevat alleen de skill en de LICENSE, geen cachebestanden of andere mappen.</p>
+  </div>
+</div></section>
+
+<!-- ============ VRAGEN ============ -->
+<section class="sectie" id="vragen"><div class="wrap">
+  <div class="kop"><div><span class="eyebrow">Vragen</span><h2>Beperkingen en vragen</h2></div>
+    <p class="grijs">Eerst wat buildflow niet kan, daarna de rest.</p></div>
+
+  <details class="ctx vraag">
+    <summary>Werkt het ook buiten Claude Code?</summary>
+    <div class="antwoord"><p>Nee. buildflow leunt op dingen die Claude Code heeft: een skill met hooks, subagents met een eigen context en de transcripts waaruit kosten en tijd worden berekend. In andere tools of chatomgevingen doet het niets.</p></div>
+  </details>
+  <details class="ctx vraag">
+    <summary>Wat moet er op mijn machine staan?</summary>
+    <div class="antwoord"><p>Python 3.9 of nieuwer en git. Het script gebruikt alleen de standaardbibliotheek, dus er valt niets te installeren met pip. Voor de UI-gate heeft Claude Code een browsertool nodig, Playwright MCP of Claude in Chrome.</p></div>
+  </details>
+  <details class="ctx vraag" id="vraag-kosten">
+    <summary>Wat kost een run?</summary>
+    <div class="antwoord"><p>Dat hangt vooral af van de grootte van de feature. Elke gate draait met eigen subagents en een review kan een paar rondes duren, dus reken op een flink aantal tokens. Het rapport laat per checkpoint, rol en model zien waar ze heen gingen.</p>
+      <p>Het bedrag in de rapporten is wat het via de API tegen lijstprijs gekost zou hebben. Met een Claude-abonnement betaal je niet per token, dus het is niet je rekening. Het is wel een eerlijke maat om runs met elkaar te vergelijken.</p></div>
+  </details>
+  <details class="ctx vraag">
+    <summary>Kan ik tussendoor iets anders vragen in dezelfde sessie?</summary>
+    <div class="antwoord"><p>Het kan, maar alles in een sessie die aan de run gekoppeld is, telt mee in het rapport, van de start tot je accepteert. Stel losse vragen dus liever in een andere sessie.</p></div>
+  </details>
+  <details class="ctx vraag">
+    <summary>Moet ik bij elke stop zelf goedkeuren?</summary>
+    <div class="antwoord"><p>Nee, start dan met <code>--auto</code>. Alleen de eindreview blijft bij jou. Meer daarover staat <a href="#auto">onder de handleiding</a>.</p></div>
+  </details>
+  <details class="ctx vraag">
+    <summary>Wat gebeurt er bij een rate limit of een crash?</summary>
+    <div class="antwoord"><p>Bij een rate limit of een API-fout legt een hook de onderbreking vast en markeert hij de gate die op dat moment liep als onderbroken. Een crash laat geen spoor na, dus daar kijkt Claude zelf naar als je terugkomt. Hoe je verdergaat, staat bij <a href="#hervatten">de fase Bouwen</a>. Een stilte van meer dan tien minuten telt in het rapport niet als bouwtijd.</p></div>
+  </details>
+  <details class="ctx vraag">
+    <summary>Mijn feature heeft geen scherm. Heb ik hier dan iets aan?</summary>
+    <div class="antwoord"><p>Ja. Dan slaat buildflow de designstap over en draait de UI-gate niet. De gates voor gedrag, review en docs blijven gewoon staan.</p></div>
+  </details>
+  <details class="ctx vraag">
+    <summary>Kan ik een plan of rapport met iemand delen?</summary>
+    <div class="antwoord"><p>Stuur <code>viewer.html</code> of <code>final.html</code> door. Beide bevatten alle data zelf, er hoeft niets bij. Je kunt Claude na afloop ook vragen het eindrapport als private Artifact te publiceren, dan heb je een link die je deelt wanneer je wilt.</p>
+      <p>Run-data staat standaard buiten git, via <code>.buildflow/.gitignore</code>. Wil je de rapporten committen, haal dat bestand dan weg.</p></div>
+  </details>
+  <details class="ctx vraag">
+    <summary>Hoe werk ik bij naar een nieuwe versie?</summary>
+    <div class="antwoord"><p>Haal de oude map weg en pak de nieuwe zip uit met hetzelfde commando als bij de installatie:</p>
+      <div class="code"><pre><code>rm -rf ~/.claude/skills/buildflow
+unzip -o buildflow.zip -d ~/.claude/skills</code></pre></div>
+      <p>Je runs staan in <code>.buildflow/</code> in je project, niet in de skill, dus die blijven staan.</p></div>
+  </details>
+</div></section>
+</main>
+
+<footer class="footer"><div class="wrap">
+  <span>buildflow · checkpoints en gates voor Claude Code, naar Shopify's Helix</span>
+  <span><a href="https://github.com/joepvanabeelen/buildflow-website">GitHub</a> · <a href="https://github.com/joepvanabeelen/buildflow-website/blob/main/LICENSE">MIT-licentie</a> · <span data-release="versie">v1.0.0</span></span>
+</div></footer>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+</body>
+</html>

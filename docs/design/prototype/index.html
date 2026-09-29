@@ -405,7 +405,7 @@ body[data-state="preview-leeg"] .kan-leeg{display:none}
 <!-- ============ einde prototype-chrome ============ -->
 
 <div class="topbalk"><div class="wrap">
-  <span>buildflow · <b>v1.0.0</b></span>
+  <span>buildflow · <b data-release="versie">v1.0.0</b></span>
   <span class="upd">MIT-licentie · werkt in Claude Code</span>
 </div></div>
 <header class="header"><div class="wrap">
@@ -425,7 +425,7 @@ body[data-state="preview-leeg"] .kan-leeg{display:none}
     <div>
       <span class="eyebrow">Skill voor Claude Code</span>
       <h1>Grote features bouwen in <span class="mark">stappen die je kunt controleren</span></h1>
-      <p class="lead">buildflow laat Claude Code een grote feature opknippen in kleine checkpoints. Elke checkpoint moet langs vaste gates: tests, een UI-check tegen het prototype, een review door een agent die ervan uitgaat dat de code fout is, en de documentatie. Bij drie of vier stops beslis jij mee, afhankelijk van of er iets zichtbaars verandert; met <code>--brief</code> of <code>--auto</code> zijn het er minder. Daartussen werkt Claude door.</p>
+      <p class="lead">buildflow laat Claude Code een grote feature opknippen in kleine checkpoints. Elke checkpoint moet langs vaste gates: de tests en een review door een agent die ervan uitgaat dat de code fout is. Verandert er iets op het scherm of in de docs, dan komen daar een UI-check tegen het prototype en een controle van de documentatie bij. Bij drie of vier stops beslis jij mee, afhankelijk van of er iets zichtbaars verandert; met <code>--brief</code> of <code>--auto</code> zijn het er minder. Daartussen werkt Claude door.</p>
       <div class="pillen"><span class="pil rand">Claude Code</span><span class="pil rand">python3</span><span class="pil rand">MIT</span></div>
       <p class="knoppen"><a class="knop" href="#download">Download de zip</a><a class="knop rand" href="#handleiding">Zo werkt het</a></p>
     </div>
@@ -735,10 +735,12 @@ unzip -o buildflow.zip -d ~/.claude/skills</code></pre></div>
   <details class="ctx vraag install-extra">
     <summary>In één project installeren, bijvoorbeeld voor je team</summary>
     <div class="antwoord">
-      <p>Pak de zip uit in de map <code>.claude/skills</code> van je project en commit hem mee. Dan werkt iedereen in het team met dezelfde versie.</p>
+      <p>Download de zip in de map van je project, net als bij stap 1, en pak hem uit in <code>.claude/skills</code>. Commit die map mee, dan werkt iedereen in het team met dezelfde versie. De zip zelf kun je daarna weggooien.</p>
       <div class="code"><pre><code>cd pad/naar/je-project
+curl -L -o buildflow.zip https://github.com/joepvanabeelen/buildflow-website/releases/latest/download/buildflow.zip
 mkdir -p .claude/skills
-unzip -o ~/Downloads/buildflow.zip -d .claude/skills
+unzip -o buildflow.zip -d .claude/skills
+rm buildflow.zip
 python3 .claude/skills/buildflow/scripts/bf.py doctor</code></pre></div>
       <p>De Stop-hook kijkt eerst in <code>~/.claude/skills/buildflow</code> en daarna in <code>.claude/skills/buildflow</code> van het project. Staat buildflow op allebei, dan draait de hook dus het script uit je homemap.</p>
     </div>
@@ -753,7 +755,7 @@ python3 .claude/skills/buildflow/scripts/bf.py doctor</code></pre></div>
     <div class="kpis">
       <div class="kpi"><span class="w" data-release="versie">v1.0.0</span><span class="l">versie</span></div>
       <div class="kpi"><span class="w" data-release="datum">2026-10-01</span><span class="l">uitgebracht</span></div>
-      <div class="kpi"><span class="w" data-release="grootte">75 kB</span><span class="l">grootte</span></div>
+      <div class="kpi"><span class="w" data-release="grootte">75 kB</span><span class="l">grootte van de zip</span></div>
     </div>
     <span class="proto-noot">Alleen in het prototype: versie, datum en grootte zijn voorbeeldwaarden. Het releasescript vult ze in.</span>
     <p class="knoppen">
@@ -819,7 +821,7 @@ unzip -o buildflow.zip -d ~/.claude/skills</code></pre></div>
 
 <footer class="footer"><div class="wrap">
   <span>buildflow · checkpoints en gates voor Claude Code, naar Shopify's Helix</span>
-  <span><a href="https://github.com/joepvanabeelen/buildflow-website">GitHub</a> · <a href="https://github.com/joepvanabeelen/buildflow-website/blob/main/LICENSE">MIT-licentie</a> · v1.0.0</span>
+  <span><a href="https://github.com/joepvanabeelen/buildflow-website">GitHub</a> · <a href="https://github.com/joepvanabeelen/buildflow-website/blob/main/LICENSE">MIT-licentie</a> · <span data-release="versie">v1.0.0</span></span>
 </div></footer>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
