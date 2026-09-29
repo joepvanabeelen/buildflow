@@ -1,0 +1,225 @@
+<!doctype html>
+<!--
+  Prototype: donker thema (Bakkerij Korrel)
+  Spec: docs/design/design.md
+
+  Componentkaart (element -> bestaand patroon in style.css, of nieuw)
+  - header.kop                 -> .kop (flexbox, padding 16px 24px, lijn eronder)
+                                  + voorstel: flex-wrap: wrap; gap: 8px 16px
+  - a.logo                     -> .logo (vet, 1.25rem, --accent) + voorstel: white-space: nowrap
+  - nav + nav a                -> nav a (--tekst, onderstreept, margin-left 16px)
+                                  + voorstel: nav { margin-left: auto; white-space: nowrap }
+  - button.themaknop           -> nieuw: .themaknop (button type="button", aria-pressed="false|true"
+                                  als enige drager van de stand; vast maanicoon (inline SVG,
+                                  stroke="currentColor", aria-hidden) + vast woord "Donker" in beide
+                                  standen, dus de breedte verspringt niet; gap 8px, padding 0 12px;
+                                  geen eigen margin-left (op 320px bewust links op rij 3); min 44x44px, rand 1px --lijn
+                                  (decoratief), radius 22px; ingedrukt (donker): rand --accent;
+                                  focusrand 2px --accent op :focus-visible; verborgen zolang
+                                  html geen data-thema heeft, dus zonder JS)
+  - span.themaknop-woord       -> nieuw: onderdeel van .themaknop, geen eigen stijl, tekst wijzigt nooit
+  - main                       -> main (max-width 720px, padding 24px)
+  - section.held h1 + p        -> .held h1 (2rem, line-height 1.2)
+  - section#brood h2 + ul      -> h2 (--accent, lijn eronder) + gewone ul
+  - section#open h2 + p        -> h2 + p
+  - footer.voet                -> .voet (.9rem, gecentreerd, lijn erboven)
+  - html[data-thema="donker"]  -> nieuw: tweede set waarden voor --bg, --tekst, --accent, --lijn
+                                  + color-scheme (voorstel voor :root in style.css)
+  - html zonder data-thema     -> nieuw: fallback zonder JS; dezelfde donkere waarden onder
+                                  @media (prefers-color-scheme: dark), knop verborgen
+  - .proto-balk, .proto-*      -> alleen prototype, geen onderdeel van de site
+-->
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Prototype: donker thema · Bakkerij Korrel</title>
+<script>
+  // Zet het thema voor de eerste render, zoals het echte head-script dat doet.
+  // Verschil met de site: de stand komt hier uit ?state= en ?thema=, niet uit localStorage.
+  // Het prototype leest en schrijft bewust NIET naar localStorage, zodat het de
+  // opgeslagen keuze (sleutel "korrel-thema") van de echte site op dezelfde origin niet vervuilt.
+  (function () {
+    var p = new URLSearchParams(location.search);
+    var state = p.get('state') || 'licht';
+    var thema = p.get('thema') || (state === 'donker' ? 'donker' : 'licht');
+    // Stand zonder-js: data-thema blijft weg, precies wat er gebeurt als scripts uit staan.
+    // Het prototype zelf draait wel JS (voor de balk), maar de themaregels zien alleen het
+    // ontbrekende attribuut; dat is de echte no-JS-situatie voor de CSS.
+    if (state !== 'zonder-js') document.documentElement.setAttribute('data-thema', thema);
+    document.documentElement.setAttribute('data-state', state);
+    if (p.get('embed') === '1') document.documentElement.setAttribute('data-embed', '1');
+  })();
+</script>
+<link rel="stylesheet" href="../../../../style.css">
+<style>
+  /* ===== voorstel uit design.md, komt in style.css ===== */
+  :root { color-scheme: light; }
+  /* Donkere waarden staan ook in het @media-blok onderaan; wijzig beide. */
+  :root[data-thema="donker"] {
+    color-scheme: dark;
+    --bg: #1f1813;
+    --tekst: #f3e9da;
+    --accent: #e08a5a;
+    --lijn: #4a3b30;
+  }
+  .kop { flex-wrap: wrap; gap: 8px 16px; }
+  .logo { white-space: nowrap; }
+  nav { margin-left: auto; white-space: nowrap; }
+  .themaknop {
+    display: inline-flex; align-items: center; gap: 8px;
+    min-height: 44px; min-width: 44px; padding: 0 12px;
+    font: inherit; color: var(--tekst); background: transparent;
+    border: 1px solid var(--lijn); border-radius: 22px; cursor: pointer;
+  }
+  /* Ingedrukt = donker aan. aria-pressed meldt het aan schermlezers, de accentrand laat het zien. */
+  :root[data-thema="donker"] .themaknop { border-color: var(--accent); }
+  .themaknop:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  /* Zonder JS zet niemand data-thema: knop weg (hij zou niets doen), systeemvoorkeur volgen. */
+  :root:not([data-thema]) .themaknop { display: none; }
+  /* Zelfde donkere waarden als :root[data-thema="donker"] hierboven; wijzig beide. */
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-thema]) {
+      color-scheme: dark;
+      --bg: #1f1813;
+      --tekst: #f3e9da;
+      --accent: #e08a5a;
+      --lijn: #4a3b30;
+    }
+  }
+  /* ===== einde voorstel ===== */
+</style>
+<style>
+  /* ===== alleen prototype: balk en frames, geen onderdeel van de site ===== */
+  .proto-balk {
+    background: #ffffff; color: #111111; border-bottom: 3px dashed #7a7a7a;
+    font: 13px/1.4 system-ui, sans-serif; padding: 8px 12px;
+    display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center;
+  }
+  .proto-balk strong { margin-right: 4px; }
+  .proto-balk a { color: #0645ad; }
+  .proto-balk a[aria-current="page"] { font-weight: 700; color: #111111; text-decoration: none; }
+  .proto-balk .proto-uitleg { flex-basis: 100%; color: #444444; }
+  [data-embed="1"] .proto-balk { display: none; }
+  .proto-balk .proto-zonder-js { display: none; }
+  [data-state="zonder-js"] .proto-balk .proto-zonder-js { display: block; }
+  .proto-frames { display: none; flex-wrap: wrap; gap: 24px; padding: 24px; background: #d9d9d9; }
+  .proto-frames figure { margin: 0; font: 13px/1.4 system-ui, sans-serif; color: #111111; }
+  .proto-frames iframe { display: block; border: 1px solid #7a7a7a; background: #ffffff; }
+  [data-state="smal"]:not([data-embed="1"]) .proto-frames,
+  [data-state="focus"]:not([data-embed="1"]) .proto-frames { display: flex; }
+  /* Focusstand: een pagina kan maar één element tegelijk focus geven, dus twee frames
+     kunnen niet allebei echt :focus-visible tonen. .proto-focus kopieert daarom exact de
+     waarden van .themaknop:focus-visible uit het voorstel hierboven, alleen voor deze stand. */
+  .themaknop.proto-focus { outline: 2px solid var(--accent); outline-offset: 2px; }
+  [data-state="smal"]:not([data-embed="1"]) .proto-site,
+  [data-state="focus"]:not([data-embed="1"]) .proto-site { display: none; }
+</style>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%277%27 fill=%27%23141412%27/%3E%3Crect x=%277%27 y=%2718%27 width=%2718%27 height=%277%27 fill=%27%23FFCE1F%27/%3E%3Ctext x=%2716%27 y=%2724%27 text-anchor=%27middle%27 font-family=%27Arial,sans-serif%27 font-weight=%27900%27 font-size=%2722%27 fill=%27%23fff%27%3Eb%3C/text%3E%3C/svg%3E">
+</head>
+<body>
+<div class="proto-balk" role="navigation" aria-label="Prototype-standen">
+  <strong>Prototype donker thema</strong>
+  <a href="?state=licht">licht</a>
+  <a href="?state=donker">donker</a>
+  <a href="?state=smal">smal (360px en 320px, beide thema's)</a>
+  <a href="?state=focus">focus (beide thema's)</a>
+  <a href="?state=zonder-js">zonder JS</a>
+  <span class="proto-uitleg">Deze grijze balk hoort niet bij de site. Stijl en markup volgen docs/design/design.md; de knop werkt, maar onthoudt niets (geen localStorage).</span>
+  <span class="proto-uitleg proto-zonder-js">Stand zonder JS is nagebootst: het prototype laat data-thema op html weg, zoals op de site zonder JS gebeurt, maar draait zelf nog wel script voor deze balk. Verwacht: geen knop, en de pagina volgt de systeeminstelling (licht of donker) van dit toestel.</span>
+</div>
+
+<div class="proto-frames" id="proto-frames"></div>
+
+<div class="proto-site">
+<header class="kop">
+  <a class="logo" href="./">Bakkerij Korrel</a>
+  <nav><a href="#brood">Brood</a> <a href="#open">Openingstijden</a></nav>
+  <button type="button" class="themaknop" aria-pressed="false">
+    <svg class="themaknop-maan" aria-hidden="true" focusable="false" width="18" height="18" viewBox="0 0 24 24"
+         fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+    <span class="themaknop-woord">Donker</span>
+  </button>
+</header>
+<main>
+  <section class="held">
+    <h1>Vers brood, elke ochtend om zeven uur</h1>
+    <p>Desem, spelt en roggebrood uit onze eigen oven in de Lange Straat.</p>
+  </section>
+  <section id="brood">
+    <h2>Brood</h2>
+    <ul>
+      <li>Desembrood wit — € 4,20</li>
+      <li>Speltbrood — € 4,60</li>
+      <li>Roggebrood — € 3,90</li>
+    </ul>
+  </section>
+  <section id="open">
+    <h2>Openingstijden</h2>
+    <p>Dinsdag tot en met zaterdag, 7.00 tot 16.00 uur.</p>
+  </section>
+</main>
+<footer class="voet">Lange Straat 12 · Korrel bakt sinds 1987</footer>
+</div>
+
+<script>
+  (function () {
+    var html = document.documentElement;
+    var p = new URLSearchParams(location.search);
+    var state = html.getAttribute('data-state');
+    var embed = html.getAttribute('data-embed') === '1';
+
+    // Huidige stand in de prototypebalk markeren.
+    document.querySelectorAll('.proto-balk a').forEach(function (a) {
+      if (a.getAttribute('href') === '?state=' + state) a.setAttribute('aria-current', 'page');
+    });
+
+    // Knop: zelfde gedrag als de site, maar zonder opslag. Woord en icoon blijven
+    // altijd "Donker" + maan; alleen aria-pressed verandert (de rand volgt via CSS).
+    var knop = document.querySelector('.themaknop');
+    function toon() {
+      var donker = html.getAttribute('data-thema') === 'donker';
+      knop.setAttribute('aria-pressed', donker ? 'true' : 'false');
+    }
+    // Zonder JS bestaat deze handler op de site niet; de knop is dan ook verborgen.
+    if (state !== 'zonder-js') knop.addEventListener('click', function () {
+      var nieuw = html.getAttribute('data-thema') === 'donker' ? 'licht' : 'donker';
+      html.setAttribute('data-thema', nieuw);
+      toon();
+      // Op de site staat hier de schrijfactie naar localStorage ("korrel-thema") in try/catch.
+      // Het prototype slaat dat bewust over.
+    });
+    if (state !== 'zonder-js') toon();
+
+    // In een frame van de focusstand: knop echt focussen (werkt in één frame tegelijk) en
+    // de focusrand ook via .proto-focus tonen, zodat beide thema's hem laten zien.
+    if (embed && state === 'focus') { knop.classList.add('proto-focus'); knop.focus(); }
+
+    // Smal en focus: beide thema's naast elkaar, elk in een eigen frame.
+    // Smal toont 360px en 320px (op 320px valt de knop op rij 3, links).
+    if (!embed && (state === 'smal' || state === 'focus')) {
+      var frames = document.getElementById('proto-frames');
+      var smal = state === 'smal';
+      var breedtes = smal ? [360, 320] : [720];
+      breedtes.forEach(function (breedte) {
+        ['licht', 'donker'].forEach(function (thema) {
+          var fig = document.createElement('figure');
+          var cap = document.createElement('figcaption');
+          cap.textContent = (smal ? breedte + 'px breed, ' : 'Focus op de knop, ') + 'thema ' + thema;
+          var f = document.createElement('iframe');
+          f.src = '?state=' + state + '&thema=' + thema + '&embed=1';
+          f.title = cap.textContent;
+          f.width = breedte + 2; // +2px voor de rand van het frame (box-sizing: border-box)
+          f.height = smal ? 640 : 220;
+          f.setAttribute('data-thema-frame', thema);
+          f.setAttribute('data-breedte', breedte);
+          fig.appendChild(cap);
+          fig.appendChild(f);
+          frames.appendChild(fig);
+        });
+      });
+    }
+  })();
+</script>
+</body>
+</html>

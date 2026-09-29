@@ -12,7 +12,7 @@ python3 -m http.server 8765
 
 ## Welke bestanden de site vormen
 
-De pagina is `index.html` in de root, met alle opmaak in `assets/site.css`. De enige externe bron is Google Fonts. Het lege bestand `.nojekyll` staat er voor GitHub Pages.
+De pagina is `index.html` in de root, met alle opmaak in `assets/site.css`. In `voorbeeld/` staan de bestanden van de voorbeeldrun waar de pagina naar linkt; hoe die gemaakt zijn, staat onder [De voorbeeldrun](#de-voorbeeldrun). De enige externe bron is Google Fonts. Het lege bestand `.nojekyll` staat er voor GitHub Pages.
 
 ## Tests
 
@@ -128,6 +128,42 @@ De tests staan in `tests/test_cp05_release.py` (de zip) en `tests/test_cp06_rele
 ### Licentie
 
 In de root van deze repo staat `LICENSE` met de MIT-licentie. Dat is ook het bestand dat als `buildflow/LICENSE` in de zip terechtkomt, dus wie de zip downloadt krijgt de licentie erbij.
+
+## De voorbeeldrun
+
+De map `voorbeeld/` laat zien wat buildflow oplevert, met bestanden uit een echte run van de skill. De demofeature is verzonnen: een donker thema voor een kleine demosite van een bakkerij, twee checkpoints groot. Het demoproject stond in een wegwerpmap buiten deze repo, zodat de run niets in deze repo aanraakte. Omdat de run een eigen sessie had, zijn de gemeten kosten alleen die van de demo.
+
+De run ging via de echte skill. Claude Code draaide headless met `claude -p`, in één sessie die bij elke volgende beurt hervat werd, zes beurten in totaal. De eerste beurt eindigde met de vragen uit de intake, en de tweede beantwoordde die. Tijdens het design liep de sessie tegen de sessielimiet aan; `final.html` noemt dat als onderbreking. Er volgde één extra beurt om te hervatten voordat de designstop kwam. Bij de stops was het antwoord steeds "akkoord", bij het design met een opmerking erbij: de knop blijft op 320px links. Vóór dat antwoord is bij elke stop de viewer gekopieerd, die tijdens een run één bestand is (`.buildflow/<slug>/viewer.html`) en steeds wordt bijgewerkt. Zo ontstonden drie momentopnames: `viewer-brief.html`, `viewer-design.html` en `viewer-plan.html`. Bij de reviewstop aan het eind zijn de twee rapporten gekopieerd: het rapport van het eerste checkpoint (`cp01.html`) en het eindrapport (`final.html`). Met de viewer mee gingen de bestanden waar hij naar linkt: de prototypepagina onder `docs/design/prototypes/donker-thema/`, het `design.md` van het demoproject en de `style.css` die het prototype gebruikt, allemaal op hun pad in het demoproject.
+
+De kosten in de rapporten zijn wat `bf.py` voor deze run gemeten heeft, zonder aanpassing. Voor de hele run is dat $17.81, en dat bedrag staat in `final.html`. `cp01.html` is gemaakt direct na het eerste checkpoint en toont de kosten van dat checkpoint zelf, $4.32, met daaronder de run tot dat moment: $11.99.
+
+### Schoonmaken
+
+De ruwe kopieën bevatten het projectpad, sessie-id's en misschien een e-mailadres. Ze gaan daarom nooit rechtstreeks naar `voorbeeld/`, maar altijd door `scripts/sanitize_demo.py`:
+
+```
+python3 scripts/sanitize_demo.py <map met ruwe kopieën> voorbeeld/
+```
+
+Het script vindt de viewers en rapporten aan het ingebedde `window.BF = {...};` en haalt het projectpad uit `project.root`. Dat pad wordt overal `~/demo/<projectnaam>`, hier `~/demo/demo-app`. Andere paden in een thuismap of een tijdelijke map worden ingekort tot iets onder `~`, ook als ze gecodeerd in JSON, een url of HTML staan. De mapnaam die Claude Code van een pad maakt (met `-Users-<naam>-` erin) wordt `-demo-...`. Sessie-id's worden `sessie-1`, `sessie-2` enzovoort, overal met dezelfde vervanging voor dezelfde id. Links naar een Claude Code-sessie en de waarde achter `Claude-Session:` worden `[sessielink]`, e-mailadressen `[e-mailadres]`. Bedragen, tijden, testaantallen en de rest van de HTML laat het script precies zoals ze waren.
+
+Een paar links werken in een losse momentopname niet, en die past het script aan. `rel_root` in `window.BF` wijst daarna naar de uitvoermap, zodat de link naar het prototype uitkomt bij de meegekopieerde pagina. "← Alle features" wijst naar `../index.html#voorbeeld`, de sectie op de site. "Open volledige viewer" in het checkpointrapport wijst naar de meest gevorderde viewer, hier `viewer-plan.html`. Documentatiebestanden van het demoproject die er niet bij zitten, staan in de lijst als gewone tekst in plaats van als link die een 404 geeft. Een lege link `href="#"` in het prototype wordt `href="./"`. Naast de viewers komt een `data.json` met alleen `null`, zodat de viewer die hij over http elke vier seconden ophaalt geen 404 geeft en zijn eigen gegevens niet overschrijft. Elke HTML-pagina zonder icoon krijgt het icoon uit de `index.html` van de site, zodat de browser niet om een `favicon.ico` vraagt die er niet is.
+
+Pas als alles in het geheugen is schoongemaakt, zoekt het script de hele uitvoer nog eens na, ook binaire bestanden en de tekstblokken in een png. Staat er dan nog een persoonlijk pad, gecodeerde gebruikersmap, sessielink, sessie-id of e-mailadres in, dan noemt het elke vondst, stopt het met exitcode 2 en schrijft het niets. Een bestaande `voorbeeld/` blijft dan staan zoals hij was.
+
+### Opnieuw maken
+
+Maak een nieuw demoproject buiten deze repo, met een eigen git-repo en een kleine feature met iets zichtbaars, zodat de designstop meedoet. Draai buildflow daar en kopieer bij de brief-, design- en planstop `.buildflow/<slug>/viewer.html` naar een map met ruwe kopieën, onder de namen `viewer-brief.html`, `viewer-design.html` en `viewer-plan.html`. Kopieer bij de reviewstop `.buildflow/<slug>/reports/cp01.html` en `final.html`, en de prototypepagina met wat die nodig heeft op hun pad relatief aan de projectroot. Die ruwe map mag niet in `voorbeeld/` liggen en `voorbeeld/` niet in de ruwe map; het script weigert dat.
+
+Het script schrijft alleen bestanden bij en overschrijft ze, maar gooit niets weg. Haal de oude voorbeeldrun dus eerst weg, anders blijven bestanden van de vorige run staan:
+
+```
+rm -rf voorbeeld
+python3 scripts/sanitize_demo.py <map met ruwe kopieën> voorbeeld/
+python3 -m unittest discover -s tests -v
+```
+
+`tests/test_cp08_voorbeeld.py` test het script op een nepviewer: projectpaden worden het demopad en de ingebedde JSON blijft geldig, sessie-id's en e-mailadressen worden overal op dezelfde manier vervangen, de prototypelink wijst naar het meegekopieerde bestand, bedragen, tijden en testaantallen blijven gelijk, en een ontbrekende invoermap schrijft niets en laat een bestaande uitvoer staan. Dezelfde tests draaien ook met het projectpad in een tijdelijke map. Over de echte `voorbeeld/` controleert het bestand dat de vijf bestanden er zijn en uit één run komen, dat het prototype binnen `voorbeeld/` ligt en over http laadt, dat de privacyscan ook over `voorbeeld/` loopt en schoon is, dat elke lokale link bestaat en dat een bedrag bij `#voorbeeld` op de pagina ook echt in `final.html` staat. `tests/test_cp08_links.py` test de linkaanpassingen in het sjabloon, het icoon, de gecodeerde paden, sessielinks en retina-bestandsnamen, en de weigering bij binaire bestanden en png's waar nog iets persoonlijks in staat. De map met ruwe kopieën bevat persoonlijke gegevens; gooi hem weg als `voorbeeld/` klaar is.
 
 ## Ontwerp
 

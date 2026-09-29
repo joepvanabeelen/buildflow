@@ -13,7 +13,7 @@ index.html
 assets/site.css
 assets/site.js
 assets/previews/*.png      screenshots van de voorbeeldrun
-voorbeeld/…                momentopnames van de viewer per stop en de echte rapporten van de voorbeeldrun
+voorbeeld/…                momentopnames van de viewer per stop, de echte rapporten en de prototypepagina van de voorbeeldrun
 ```
 
 De site staat in de root van de repo (`index.html` en `assets/`), met een lege `.nojekyll` ernaast voor GitHub Pages. Het prototype staat in `docs/design/prototype/index.html`.
@@ -366,7 +366,7 @@ Standaard staat alleen de eerste fase open. Wie de handleiding helemaal wil leze
 
 ### Voorbeeldrun
 
-Een raster van previews. De viewer is tijdens een run één bestand dat steeds wordt bijgewerkt, dus de voorbeeldrun bestaat uit momentopnames daarvan bij elke stop (`voorbeeld/viewer-brief.html`, `viewer-design.html`, `viewer-plan.html`) plus twee echte rapporten (`voorbeeld/cp01.html`, `voorbeeld/final.html`). De tekst op de site zegt dat ook zo. Elke preview is een screenshot met een link naar het bestand.
+Een raster van previews. De viewer is tijdens een run één bestand dat steeds wordt bijgewerkt, dus de voorbeeldrun bestaat uit momentopnames daarvan bij elke stop (`voorbeeld/viewer-brief.html`, `viewer-design.html`, `viewer-plan.html`) plus twee echte rapporten (`voorbeeld/cp01.html`, `voorbeeld/final.html`). Het prototype van de demofeature staat er ook bij, zodat het in `viewer-design.html` laadt. De tekst op de site zegt dat ook zo. Hoe de bestanden gemaakt en schoongemaakt zijn, staat in de README. Elke preview is een screenshot met een link naar het bestand.
 
 ```html
 <div class="previews">

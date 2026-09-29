@@ -1,0 +1,1058 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Donker thema · buildflow</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@100..125,400..900&family=Source+Sans+3:ital,wght@0,400;0,600;0,700;1,400&display=swap">
+<style>
+:root{
+  --accent:#FFCE1F; --accent-zacht:#FFF1B8; --accent-licht:#FFFAE6; --accent-diep:#8A6A00;
+  --zwart:#141412; --inkt:#26251F; --grijs:#686559; --grijs-licht:#9C998D;
+  --lijn:#E7E4DB; --vlak:#F7F6F2; --wit:#FFFFFF; --fout:#B42318; --fout-zacht:#FDECEA;
+  --radius:14px; --radius-s:8px; --max:1200px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-text-size-adjust:100%}
+body{font-family:'Source Sans 3','Segoe UI',system-ui,sans-serif;font-size:17px;line-height:1.55;color:var(--inkt);background:var(--wit);-webkit-font-smoothing:antialiased}
+h1,h2,h3,h4,.display{font-family:'Archivo','Arial Narrow',system-ui,sans-serif;color:var(--zwart);text-wrap:balance;letter-spacing:-.01em}
+h1{font-size:clamp(2rem,1.4rem + 2.4vw,3.4rem);font-weight:800;font-stretch:108%;line-height:1.04}
+h2{font-size:clamp(1.5rem,1.2rem + 1.2vw,2.2rem);font-weight:800;font-stretch:106%;line-height:1.1}
+h3{font-size:1.2rem;font-weight:750;line-height:1.25}
+h4{font-size:1rem;font-weight:750}
+a{color:inherit}
+button{font:inherit;cursor:pointer;border:0;background:none;color:inherit}
+textarea{font:inherit;color:inherit}
+:focus-visible{outline:3px solid var(--zwart);outline-offset:3px;border-radius:4px}
+code,.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.86em}
+.wrap{max-width:var(--max);margin-inline:auto;padding-inline:clamp(16px,4vw,40px)}
+.eyebrow{font-family:'Archivo',sans-serif;font-size:.74rem;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--grijs)}
+.eyebrow,.prose,.md,.poging,.finding,code{overflow-wrap:anywhere}
+.mark{background:linear-gradient(transparent 58%,var(--accent) 58%);padding:0 .08em}
+.lead{font-size:1.18rem;line-height:1.5}
+.grijs{color:var(--grijs)}
+.klein{font-size:.9rem}
+
+/* top bar + header */
+.topbalk{background:var(--zwart);color:#DAD7CD;font-size:.86rem}
+.topbalk .wrap{display:flex;gap:16px;align-items:center;justify-content:space-between;min-height:38px;flex-wrap:wrap}
+.topbalk b{color:#fff}
+.header{position:sticky;top:0;z-index:20;background:rgba(255,255,255,.96);backdrop-filter:blur(8px);border-bottom:1px solid var(--lijn)}
+.header .wrap{display:flex;align-items:center;gap:20px;min-height:64px;flex-wrap:wrap}
+.woordmerk{display:flex;align-items:baseline;gap:.2em;font-family:'Archivo',sans-serif;color:var(--zwart);line-height:1;text-decoration:none}
+.woordmerk b{font-weight:900;font-stretch:125%;font-size:1.45rem;letter-spacing:-.02em;position:relative;z-index:0}
+.woordmerk b::after{content:'';position:absolute;left:-.06em;right:-.08em;bottom:.02em;height:.36em;background:var(--accent);z-index:-1}
+.woordmerk span{font-weight:500;font-size:1.2rem}
+.nav{display:flex;gap:2px;flex-wrap:wrap;margin-left:auto}
+.nav a{padding:8px 12px;border-radius:6px;font-weight:600;font-size:.95rem;text-decoration:none;white-space:nowrap}
+.nav a:hover{background:var(--vlak)}
+.nav a.actief{background:var(--accent-zacht);box-shadow:inset 0 -2px 0 var(--accent)}
+
+/* pills, buttons */
+.pil{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:3px 11px;font-family:'Archivo',sans-serif;font-weight:700;font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;white-space:nowrap}
+.pil.geel{background:var(--accent);color:var(--zwart)}
+.pil.zwart{background:var(--zwart);color:#fff}
+.pil.rand{box-shadow:inset 0 0 0 1.5px var(--zwart);color:var(--zwart)}
+.knop{text-decoration:none;display:inline-flex;align-items:center;gap:8px;font-weight:700;font-size:.95rem;padding:11px 20px;border-radius:999px;background:var(--accent);color:var(--zwart);white-space:nowrap;transition:transform .15s ease}
+.knop:hover{transform:translateY(-1px)}
+.knop.zwart{background:var(--zwart);color:#fff}
+.knop.rand{background:transparent;box-shadow:inset 0 0 0 2px var(--zwart)}
+.knop.klein{padding:7px 14px;font-size:.86rem}
+
+/* sections */
+.sectie{padding-block:clamp(40px,6vw,72px)}
+.sectie.vlak{background:var(--vlak)}
+.sectie.zwart{background:var(--zwart);color:#EDEBE4}
+.sectie.zwart h2,.sectie.zwart h3,.sectie.zwart h4{color:#fff}
+.sectie.zwart .eyebrow{color:var(--accent)}
+.sectie.zwart .grijs{color:#B9B6AB}
+.kop{display:flex;justify-content:space-between;align-items:end;gap:20px;flex-wrap:wrap;margin-bottom:26px}
+.kop p{max-width:60ch}
+
+.hero{padding-block:clamp(36px,5vw,64px) clamp(28px,4vw,48px)}
+.hero-grid{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:clamp(24px,4vw,56px);align-items:start}
+.hero h1{margin:14px 0 16px}
+.volgende{border:2px solid var(--zwart);border-radius:var(--radius);padding:20px 22px;background:var(--wit);box-shadow:6px 6px 0 var(--accent)}
+.volgende .eyebrow{margin-bottom:8px;display:block}
+.volgende p{font-weight:600}
+
+/* KPI tiles */
+.kpis{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:12px;margin-top:28px}
+@media (max-width:1100px){.kpis,.sectie.zwart .kpis{grid-template-columns:repeat(4,minmax(0,1fr))}}
+
+.kpi{background:var(--wit);border:1px solid var(--lijn);border-radius:var(--radius);padding:16px 18px}
+.kpi .w{font-family:'Archivo',sans-serif;font-weight:800;font-stretch:110%;font-size:clamp(1.3rem,1rem + 1vw,1.7rem);white-space:nowrap;color:var(--zwart);line-height:1.1;display:block}
+.kpi .l{font-size:.84rem;color:var(--grijs)}
+.sectie.zwart .kpi{background:#1F1E1B;border-color:#34322C}
+.sectie.zwart .kpi .w{color:var(--accent)}
+.sectie.zwart .kpi .l{color:#B9B6AB}
+
+/* progress rail */
+.rail{display:flex;gap:4px;margin-top:22px}
+.rail i{flex:1;height:10px;border-radius:3px;background:var(--lijn)}
+.rail i.passed{background:var(--zwart)}
+.rail i.in_progress{background:var(--accent)}
+.rail i.blocked{background:var(--fout)}
+
+/* checkpoint cards */
+.cps{display:grid;gap:12px}
+.cp{background:var(--wit);border:1px solid var(--lijn);border-radius:var(--radius);overflow:hidden}
+.cp.in_progress{border-color:var(--zwart);box-shadow:4px 4px 0 var(--accent)}
+.cp.blocked{border-color:var(--fout)}
+.cp summary{list-style:none;cursor:pointer;display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:16px;align-items:center;padding:16px 18px}
+.cp summary::-webkit-details-marker{display:none}
+.nr{width:36px;height:36px;border-radius:999px;display:grid;place-items:center;background:var(--accent);font-family:'Archivo',sans-serif;font-weight:800;color:var(--zwart)}
+.cp.passed .nr{background:var(--zwart);color:var(--accent)}
+.cp h3{font-size:1.08rem}
+.cp .sub{font-size:.93rem;color:var(--grijs);margin-top:2px}
+.gates{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+.chip{display:inline-flex;align-items:center;gap:5px;border-radius:999px;padding:3px 10px;font-size:.78rem;font-weight:700;white-space:nowrap;box-shadow:inset 0 0 0 1.5px var(--lijn);color:var(--grijs)}
+.chip.passed{background:var(--zwart);color:var(--accent);box-shadow:none}
+.chip.running{background:var(--accent);color:var(--zwart);box-shadow:none}
+.chip.failed{background:var(--fout-zacht);color:var(--fout);box-shadow:inset 0 0 0 1.5px var(--fout)}
+.chip.interrupted{background:var(--accent-licht);color:var(--accent-diep);box-shadow:none;border:1.5px dashed var(--accent-diep);padding:2px 9px}
+.chip.skipped{box-shadow:inset 0 0 0 1.5px var(--lijn);color:var(--grijs-licht);text-decoration:line-through}
+.chip.feedback{background:var(--accent-zacht);color:var(--accent-diep);box-shadow:none}
+.cp-body{border-top:1px solid var(--lijn);padding:18px;display:grid;gap:18px;background:var(--accent-licht)}
+.twee{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:18px}
+.blok h4{margin-bottom:6px}
+ul.check{list-style:none;display:grid;gap:4px}
+ul.check li{padding-left:24px;position:relative}
+ul.check li::before{content:'';position:absolute;left:0;top:.45em;width:12px;height:12px;border-radius:3px;box-shadow:inset 0 0 0 2px var(--zwart)}
+ul.check.done li::before{background:var(--zwart);box-shadow:inset 0 0 0 3px var(--accent)}
+.tabel{width:100%;border-collapse:collapse;font-size:.92rem;background:var(--wit);border-radius:var(--radius-s);overflow:hidden}
+.tabel th{font-family:'Archivo',sans-serif;font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;color:var(--grijs);text-align:left;padding:9px 12px;border-bottom:2px solid var(--zwart);background:var(--wit)}
+.tabel td{padding:9px 12px;border-bottom:1px solid var(--lijn);vertical-align:top}
+.tabel td.r,.tabel th.r{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.sectie.zwart .tabel{background:#1F1E1B}
+.sectie.zwart .tabel th{background:#1F1E1B;color:#B9B6AB;border-color:var(--accent)}
+.sectie.zwart .tabel td{border-color:#34322C}
+.scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.poging{background:var(--wit);border:1px solid var(--lijn);border-radius:var(--radius-s);padding:12px 14px;margin-top:8px}
+.poging-kop{display:flex;gap:10px;align-items:center;flex-wrap:wrap;font-weight:700}
+.finding{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:10px;font-size:.9rem;padding:6px 0;border-top:1px dashed var(--lijn)}
+.sev{font-family:'Archivo';font-weight:800;font-size:.68rem;letter-spacing:.08em;text-transform:uppercase;padding:2px 7px;border-radius:4px;background:var(--vlak);height:fit-content}
+.sev.blocker,.sev.critical,.sev.high,.sev.major{background:var(--fout);color:#fff}
+.sev.medium{background:var(--accent)}
+.feedback-box textarea{width:100%;min-height:70px;border:1.5px solid var(--lijn);border-radius:var(--radius-s);padding:10px 12px;background:var(--wit);resize:vertical}
+.feedback-box textarea:focus{border-color:var(--zwart);outline:none}
+
+/* bars */
+.bars{display:grid;gap:10px}
+.bar{display:grid;grid-template-columns:minmax(90px,200px) minmax(0,1fr) auto;gap:12px;align-items:center;font-size:.92rem}
+.bar .spoor{height:14px;background:#2A2925;border-radius:3px;overflow:hidden}
+.bar .vul{height:100%;background:var(--accent);border-radius:3px;min-width:2px}
+.bar .n{font-variant-numeric:tabular-nums;font-weight:700;color:#fff;white-space:nowrap}
+.bar .lbl{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* stage stepper */
+.stepper{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:6px;margin-top:26px;list-style:none}
+.stap{border-top:5px solid var(--lijn);padding-top:8px;font-size:.84rem;color:var(--grijs-licht);min-width:0}
+.stap b{display:block;font-family:'Archivo',sans-serif;font-weight:750;font-size:.92rem;color:var(--grijs)}
+.stap.done{border-color:var(--zwart);color:var(--grijs)}
+.stap.done b{color:var(--zwart)}
+.stap.current{border-color:var(--accent)}
+.stap.current b{color:var(--zwart)}
+.stap.current span{color:var(--inkt);font-weight:600}
+.stap.skipped{border-top-style:dotted}
+.stap.skipped b{text-decoration:line-through;color:var(--grijs-licht)}
+/* rendered markdown */
+.prose{background:var(--wit);border:1px solid var(--lijn);border-radius:var(--radius);padding:clamp(16px,3vw,28px)}
+.prose h1{font-size:1.5rem;margin:0 0 12px}.prose h2{font-size:1.2rem;margin:22px 0 8px}.prose h3{font-size:1.02rem;margin:18px 0 6px}
+.prose h1:first-child,.prose h2:first-child{margin-top:0}
+.prose p{margin:0 0 10px}.prose ul,.prose ol{margin:0 0 12px 1.2em}.prose li{margin:3px 0}
+.prose code{background:var(--vlak);padding:1px 5px;border-radius:4px}
+.prose a{text-decoration-color:var(--accent);text-decoration-thickness:2px}
+details.ctx{background:var(--wit);border:1px solid var(--lijn);border-radius:var(--radius);margin-bottom:12px}
+details.ctx summary{cursor:pointer;padding:14px 18px;font-weight:700;list-style:none;display:flex;align-items:baseline;flex-wrap:wrap;gap:4px 12px}
+details.ctx summary::-webkit-details-marker{display:none}
+details.ctx summary::after{content:'+';font-family:'Archivo';font-weight:800;margin-left:auto}
+details.ctx[open] summary::after{content:'–'}
+details.ctx .prose{border:0;border-top:1px solid var(--lijn);border-radius:0 0 var(--radius) var(--radius)}
+.proto-frame{width:100%;height:640px;border:2px solid var(--zwart);border-radius:var(--radius);background:#fff;box-shadow:6px 6px 0 var(--accent)}
+.statenrij{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 14px}
+.statenrij .chip{cursor:pointer;text-decoration:none;color:var(--inkt)}
+.statenrij .chip.aan{background:var(--accent);color:var(--zwart);box-shadow:none}
+.pad{display:block;margin-top:6px;word-break:break-all;color:var(--grijs)}
+.leeg{border:2px dashed var(--lijn);border-radius:var(--radius);padding:28px;text-align:center;color:var(--grijs)}
+.md{white-space:pre-wrap;background:var(--wit);border:1px solid var(--lijn);border-radius:var(--radius);padding:18px 20px;font-size:.95rem}
+.footer{background:var(--zwart);color:#B9B6AB;font-size:.86rem;padding-block:22px}
+.footer .wrap{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--zwart);color:#fff;padding:10px 18px;border-radius:999px;font-weight:600;opacity:0;transition:opacity .2s;pointer-events:none;z-index:50}
+.toast.aan{opacity:1}
+.toast.fout{background:var(--fout)}
+.runregel{margin-top:28px;padding-top:14px;border-top:1px solid #34322C}
+
+/* the checkpoint the run is on */
+.cp.actief{border:2px solid var(--zwart);box-shadow:6px 6px 0 var(--accent)}
+.cp.actief .nr{background:var(--zwart);color:var(--accent);box-shadow:0 0 0 3px var(--accent)}
+details.cp{scroll-margin-top:96px}
+.rail i.actief{outline:2px solid var(--zwart);outline-offset:2px}
+.terug{font-weight:600;font-size:.9rem;text-decoration:none;white-space:nowrap;padding:6px 10px;border-radius:6px}
+.terug:hover{background:var(--vlak)}
+
+/* overview of all runs (.buildflow/index.html) */
+.runs{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,340px),1fr));gap:16px}
+.run-kaart{background:var(--wit);border:1px solid var(--lijn);border-radius:var(--radius);padding:18px 20px;display:grid;gap:10px;align-content:start;min-width:0}
+.run-kaart.actief{border:2px solid var(--zwart);box-shadow:6px 6px 0 var(--accent)}
+.run-kaart h3 a{text-decoration:none}
+.run-kaart h3 a:hover{text-decoration:underline;text-decoration-color:var(--accent);text-decoration-thickness:3px}
+.run-kaart .rail{margin-top:2px}
+.run-meta{display:grid;grid-template-columns:auto minmax(0,1fr);gap:2px 14px;font-size:.9rem}
+.run-meta dt{color:var(--grijs)}
+.run-meta dd{font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.run-links{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.run-links .chip{text-decoration:none}
+.run-links .chip:not(.passed):not(.failed){color:var(--inkt)}
+.toast{max-width:calc(100vw - 32px);text-align:center;border-radius:18px}
+
+/* live viewer (bf serve): actions and the inbox */
+.knoppen{display:flex;flex-wrap:wrap;gap:10px;margin-top:12px;align-items:center}
+.knop[disabled]{opacity:.55;cursor:progress;transform:none}
+.live{display:inline-flex;align-items:center;gap:7px;white-space:nowrap}
+.live i{width:8px;height:8px;border-radius:50%;background:var(--grijs-licht);display:inline-block}
+.live.aan i{background:var(--accent);box-shadow:0 0 0 3px rgba(255,206,31,.25)}
+.live.uit{color:#F2A49C}
+.acties{margin-top:14px;padding-top:14px;border-top:1.5px dashed var(--lijn)}
+.acties .vraag{font-weight:700;margin-bottom:2px}
+.acties .klaar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-weight:600}
+.inbox{margin-top:28px;border:2px solid var(--zwart);border-radius:var(--radius);background:var(--wit);padding:18px 20px;display:grid;gap:14px;grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+.inbox h3{margin-bottom:4px}
+.inbox .feedback-box textarea{min-height:64px}
+.inbox-lijst{list-style:none;display:grid;gap:8px;align-content:start}
+.inbox-lijst li{border:1px solid var(--lijn);border-radius:var(--radius-s);padding:8px 12px;font-size:.92rem;background:var(--vlak);min-width:0}
+.inbox-lijst .regel{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.inbox-lijst .tekst{margin-top:4px;overflow-wrap:anywhere}
+.inbox-lijst .noot{margin-top:4px;color:var(--grijs);overflow-wrap:anywhere}
+.pil.st-new{background:var(--accent);color:var(--zwart)}
+.pil.st-read{box-shadow:inset 0 0 0 1.5px var(--zwart);color:var(--zwart)}
+.pil.st-handled{background:var(--zwart);color:#fff}
+@media (max-width:820px){.inbox{grid-template-columns:1fr}}
+@media (max-width:640px){.inbox{padding:14px}.knoppen .knop{white-space:normal;text-align:center}}
+
+section[id]{scroll-margin-top:84px}
+@media (max-width:820px){
+  .hero-grid{grid-template-columns:1fr}
+  .cp summary{grid-template-columns:auto minmax(0,1fr)}
+  .cp summary .gates{grid-column:1 / -1;justify-content:flex-start}
+  .bar{grid-template-columns:minmax(80px,120px) minmax(0,1fr) auto}
+  .kop{align-items:start}
+}
+@media (max-width:820px){
+  /* tables become stacked cards */
+  .scroll{overflow:visible}
+  .tabel.stack,.tabel.stack tbody,.tabel.stack tr,.tabel.stack td{display:block;width:100%}
+  .tabel.stack{background:transparent}
+  .tabel.stack thead{display:none}
+  .tabel.stack tr{background:var(--wit);border:1px solid var(--lijn);border-radius:var(--radius-s);padding:8px 12px;margin-bottom:8px}
+  .tabel.stack td{border:0;padding:4px 0;display:flex;justify-content:space-between;gap:12px;text-align:right}
+  .tabel.stack td::before{content:attr(data-l);font-family:'Archivo',sans-serif;font-size:.7rem;letter-spacing:.1em;text-transform:uppercase;color:var(--grijs);text-align:left;flex:none;padding-top:.2em}
+  .tabel.stack td.hoofd{display:block;font-weight:700;text-align:left;font-size:1rem}
+  .tabel.stack td.hoofd::before{display:none}
+  .sectie.zwart .tabel.stack tr{background:#1F1E1B;border-color:#34322C}
+  .sectie.zwart .tabel.stack td::before{color:#B9B6AB}
+  .tabel.stack tr{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));column-gap:24px}
+  .tabel.stack td.hoofd{grid-column:1 / -1}
+}
+@media (max-width:820px){
+  .stepper{grid-template-columns:repeat(3,minmax(0,1fr));row-gap:14px}
+}
+@media (max-width:640px){
+  body{font-size:16px}
+  .proto-frame{height:520px;box-shadow:4px 4px 0 var(--accent)}
+  .topbalk .upd{display:none}
+  .header{position:static}
+  .header .wrap{min-height:52px;gap:4px 10px;flex-wrap:wrap;padding-top:8px}
+  .woordmerk b{font-size:1.2rem}.woordmerk span{font-size:1rem}
+  .header .pil{font-size:.64rem;padding:3px 8px}
+  .nav{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;margin:0 -9px;width:calc(100% + 18px);min-width:0;-webkit-mask-image:linear-gradient(to right,#000 82%,transparent);mask-image:linear-gradient(to right,#000 82%,transparent);padding-right:24px}
+  .nav::-webkit-scrollbar{display:none}
+  .nav a{padding:7px 9px;font-size:.88rem}
+  section[id]{scroll-margin-top:0}
+  .sectie{padding-block:36px}
+  .kpis,.sectie.zwart .kpis{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+  .kpi{padding:12px 14px}.kpi .w{font-size:1.4rem}
+  .cp summary{padding:14px;gap:12px}
+  .cp-body{padding:14px}
+  .volgende{box-shadow:4px 4px 0 var(--accent)}
+  .bar{grid-template-columns:minmax(0,1fr) auto;row-gap:4px}
+  .bar .spoor{grid-column:1 / -1;grid-row:2}
+  .finding{grid-template-columns:auto minmax(0,1fr)}
+  .finding>span:last-child{grid-column:2}
+}
+@media print{
+  .header,.nav,.feedback-box,.knop,.toast,.inbox,.acties{display:none!important}
+  details.cp{break-inside:avoid}
+  details.cp>.cp-body{display:grid!important}
+  .sectie{padding-block:24px}
+  body{font-size:12px}
+}
+</style>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%277%27 fill=%27%23141412%27/%3E%3Crect x=%277%27 y=%2718%27 width=%2718%27 height=%277%27 fill=%27%23FFCE1F%27/%3E%3Ctext x=%2716%27 y=%2724%27 text-anchor=%27middle%27 font-family=%27Arial,sans-serif%27 font-weight=%27900%27 font-size=%2722%27 fill=%27%23fff%27%3Eb%3C/text%3E%3C/svg%3E">
+</head>
+<body>
+<div id="app"></div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<script>
+window.BF = {"version": 1, "slug": "donker-thema", "title": "Donker thema", "goal": "Een knop in de kop van de site die het donkere thema aan- en uitzet en de keuze onthoudt bij een volgend bezoek. Het donkere thema past bij de huisstijl in style.css.", "lang": "nl", "mode": "interactive", "created_at": "2026-09-29T16:39:59Z", "updated_at": "2026-09-29T16:41:46Z", "approved_at": null, "finished_at": null, "phase": "awaiting_brief_approval", "phase_log": [{"phase": "intake", "at": "2026-09-29T16:39:59Z"}, {"phase": "brief", "at": "2026-09-29T16:40:58Z"}, {"phase": "awaiting_brief_approval", "at": "2026-09-29T16:41:46Z"}], "stages": {"context": {"status": "done", "project_file": ".buildflow/context.md", "feature_file": ".buildflow/donker-thema/context-feature.md", "at": "2026-09-29T16:40:57Z"}, "brief": {"status": "awaiting", "file": ".buildflow/donker-thema/brief.md", "source": "brainstorm"}, "design": {"status": "pending", "review": {"status": "pending", "attempts": []}}, "docs": {"status": "pending", "attempts": []}}, "approvals": [], "sessions": ["sessie-1"], "project": {"root": "~/demo/demo-app", "branch": "buildflow/donker-thema", "base_commit": "fc46ff9ad9b30e24a7162b947c5824ff5df2d6ad", "test_command": "npx playwright test", "dev_command": "python3 -m http.server 8000", "dev_url": "http://localhost:8000", "design_ref": "none", "review_standard": "style.css,README.md,.buildflow/context.md"}, "checkpoints": [], "feedback": [], "questions": [], "assumptions": [], "learnings": "# Learnings: Donker thema\n\nEvery agent reads this before starting work. Newest last.\n", "next_action": "Waiting for the human to approve the brief, in chat or in the live viewer (`bf.py wait` / `bf.py inbox`; then `bf.py approve`).", "focus": null, "brief_text": "# Donker thema\n\n## Problem\nKlanten van Bakkerij Korrel bestellen vaak 's avonds laat. De site is dan fel: een crème achtergrond (`--bg: #fbf7f0`) in een donkere kamer leest onprettig. Er is nu geen manier om de site donker te maken.\n\n## Users and situations\nBezoekers van de site, meestal op de telefoon, vaak 's avonds. Een deel heeft hun toestel al op donkere modus staan. Er zijn geen accounts of rechten; alles gebeurt in de browser van de bezoeker.\n\n## What success looks like\n- Wie het toestel op donkere modus heeft staan, ziet bij een eerste bezoek meteen de donkere site.\n- Een knop rechts in de kop wisselt tussen licht en donker. De knop toont een icoon met het woord \"Donker\" of \"Licht\" en meldt zijn stand aan schermlezers (`aria-pressed`).\n- Bij een volgend bezoek staat de site in de laatst gekozen stand. Een eigen keuze gaat altijd voor op de systeeminstelling.\n- Bij het laden flitst de site niet eerst licht op voordat hij donker wordt.\n- Het donkere thema voelt als Korrel: warm donkerbruin, crème tekst, terracotta accent. Tekst en links halen WCAG AA-contrast.\n\n## Scope\n**In:** donker palet als CSS-variabelen in `style.css`, de knop in `header.kop`, een klein script dat de keuze in `localStorage` bewaart en voor het tekenen toepast, documentatie in `README.md` en `docs/README.md`.\n**Out:** een derde stand \"systeem\", overgangsanimaties, meerdere thema's, instellingen op andere plekken dan de kop.\n**Smallest version worth shipping:** dit geheel. Het is al klein.\n\n## Chosen approach\nHet thema zit op het `<html>`-element (bijvoorbeeld `data-thema=\"donker\"`). `style.css` definieert daarvoor een tweede set waarden voor de bestaande variabelen (`--bg`, `--tekst`, `--accent`, `--lijn`), zodat de rest van de stylesheet niet verandert. Een klein inline script in de `<head>` leest de bewaarde keuze, of anders `prefers-color-scheme`, en zet het attribuut voordat de pagina getekend wordt. De knop wisselt het attribuut en slaat de keuze op.\n\nEr zijn twee alternatieven afgevallen. Met alleen `@media (prefers-color-scheme: dark)` onthoudt de site geen keuze en is er geen knop. Een drie-standenknop (licht/donker/systeem) is lastiger te begrijpen en levert voor deze site weinig op.\n\nRichting voor het palet: achtergrond rond `#1f1813`, crème tekst, een iets lichter terracotta voor het accent. De exacte waarden worden gekozen op contrast.\n\n## UI\nJa, het uiterlijk verandert: de kop krijgt een knop, en de hele pagina (kop, held, lijsten, koppen, voet) krijgt een donkere variant. Er is nog geen ontwerpdocument; de huisstijl staat alleen in `style.css`. Op smalle schermen moet de knop in de kop passen naast logo en navigatie.\n\n## Constraints and risks\n- Geen buildstap en geen dependencies in de site zelf. Tests draaien met Playwright (1.63, lokaal aanwezig) tegen `python3 -m http.server`.\n- Als `localStorage` niet werkt (privémodus, geblokkeerd), werkt de knop gewoon voor dat bezoek. Alleen het onthouden valt dan weg, en er verschijnt geen foutmelding.\n- Er mag geen flits van het verkeerde thema zijn: het script moet in de `<head>` staan, voor de stylesheet toegepast wordt.\n- De gebruiker wil het klein houden: één checkpoint, hooguit twee.\n\n## Open questions\nGeen. Alle keuzes zijn op 29 september 2026 met de opdrachtgever afgestemd.\n", "feature_context_text": "# Context: donker thema\n\nKleine statische site (Bakkerij Korrel), geen buildstap, geen JavaScript, geen tests, geen data of rechten. Bronnen: `index.html`, `style.css`, `README.md`, `docs/README.md`.\n\n## 1. Bestaand gedrag\n- Er is geen thema-functionaliteit: geen knop, geen script, geen `prefers-color-scheme`, geen `localStorage`. Niets van de feature bestaat al.\n- `index.html`: `<header class=\"kop\">` bevat `<a class=\"logo\">` en `<nav>` met twee ankerlinks. Geen `<script>`; enige asset is `style.css`.\n- `style.css`: kleuren staan als variabelen op `:root` (regel 1-7): `--bg #fbf7f0`, `--tekst #2b2118`, `--accent #c2622d`, `--lijn #e3d8c7`, `--font` (Georgia). Alle regels gebruiken die variabelen, dus een tweede set waarden is genoeg om te wisselen. Geen hardcoded kleuren daarbuiten.\n- `.kop` is een flexbox (`space-between`, padding 16px 24px); `nav a` heeft `margin-left: 16px`. Er is geen media query, dus nog geen responsive gedrag.\n- Let op: `nav a` heeft `color: var(--tekst)` en `h2`/`.logo` gebruiken `--accent`; die moeten in donker leesbaar blijven.\n\n## 2. Raakpunten\n- `style.css`: donkere waarden voor de variabelen (bijv. onder `:root[data-theme=\"dark\"]`), stijl voor de knop, eventueel `color-scheme`.\n- `index.html`: knop in `header.kop` (naast of in `nav`), inline script in `<head>` tegen flits, en script (inline of nieuw bestand, bijv. `theme.js`) voor toggle en opslag.\n- `README.md`: regel over huisstijl uitbreiden. `docs/README.md`: is een lege placeholder (\"ontwerpkeuzes\"), past voor de keuzes over het thema.\n\n## 3. Dichtstbijzijnde voorbeelden\n- Geen vergelijkbare feature. Patroon om te volgen: variabelen in `:root` en Nederlandse klassenamen (`kop`, `held`, `voet`, `logo`) in `style.css`. Nieuwe klasse dus in het Nederlands, bijv. `.themaknop`.\n\n## 4. Data en rechten\n- Geen datamodel, geen gebruikers, geen toegangscontrole. Enige \"data\" is de themakeuze in de browser (`localStorage`), zonder persoonsgegevens; geen server of cookie nodig.\n\n## 5. Tests\n- Geen tests, geen testframework, geen package.json. Verificatie is handmatig in de browser (`python3 -m http.server 8000`) of met Playwright.\n\n## 6. Docs\n- `README.md` (huisstijl in één alinea), `docs/README.md` (placeholder). Geen design.md, geen prototypes, geen CHANGELOG. Taal: Nederlands, kort.\n\n## 7. Recente wijzigingen\n- Eén commit: `fc46ff9 Eerste versie van de site`. Branch `buildflow/donker-thema`, werkboom schoon. Project context (`.buildflow/context.md`) wordt parallel geschreven.\n\n## 8. Open vragen voor de brief\n1. Standaard: volgen we de OS-voorkeur (`prefers-color-scheme: dark`) tot de bezoeker zelf kiest, of is licht altijd de start? En bestaat er een derde stand \"systeem\", of alleen aan/uit?\n2. Flits van het verkeerde thema bij laden: accepteren we een inline script in `<head>` dat het attribuut zet voor de eerste render (aanbevolen), en mag dat inline of moet het een apart bestand zijn?\n3. Vorm van de knop: tekst (\"Donker thema\"), icoon (maan/zon) of beide? Toegankelijkheid: `<button type=\"button\">` met `aria-pressed` of wisselend `aria-label`; taal Nederlands.\n4. Opslag: `localStorage` kan falen (privémodus, geblokkeerd). Stilzwijgend terugvallen op sessie zonder onthouden, of iets tonen? Sleutelnaam (bijv. `korrel-thema`)?\n5. Plaatsing op smalle schermen: in de kop naast de nav past mogelijk niet; mag de kop wrappen, of moet de knop altijd rechts naast de logo staan? Er zijn nu geen breakpoints.\n6. Donker palet: afleiden van de warme huisstijl (donkerbruin bg rond `#1f1811`, crème tekst, accent lichter dan `#c2622d`) of neutraal donker? Accent `#c2622d` op donker heeft te weinig contrast voor tekst (rond 4:1 op donkerbruin); mag het accent voor donker worden opgelicht? Doel: WCAG AA (4,5:1 tekst).\n7. Overgang: animatie bij wisselen (met `prefers-reduced-motion`) of direct?\n8. Documentatie: alleen README aanpassen, of ook ontwerpkeuzes in `docs/README.md` vastleggen?\n", "project_context_text": "# Projectcontext: Bakkerij Korrel\n\nGeschreven op 2026-09-29. Bronnen: index.html, style.css, README.md, docs/README.md, git log (één commit, fc46ff9).\n\n## 1. Wat dit is\n\nEen statische, eenpagina-website van een verzonnen buurtbakkerij (`README.md`). De pagina toont een kop met logo en navigatie, een hero-tekst, een broodlijst met prijzen en de openingstijden (`index.html`). Er is één type gebruiker: de bezoeker van de site. Er is geen inlog en geen beheer.\n\nWoordenlijst (de code is Nederlandstalig):\n- `kop`: de sitekop met logo en nav, `<header class=\"kop\">` in `index.html`, stijl in `style.css` regel 10.\n- `held`: de hero-sectie bovenaan, `.held` in `index.html` en `style.css`.\n- `voet`: de footer, `.voet`.\n- `--bg`, `--tekst`, `--accent`, `--lijn`, `--font`: de huisstijl-variabelen, gedefinieerd in `:root` in `style.css`.\n\n## 2. Stack en layout\n\n- Puur HTML en CSS, geen JavaScript, geen framework, geen package manager, geen buildstap (`README.md`). Er is geen `package.json`.\n- `index.html`: de enige pagina (`lang=\"nl\"`), laadt `style.css` via `<link>` in de head. Entry point.\n- `style.css`: alle stijl, 16 regels.\n- `README.md`: korte uitleg. `docs/README.md`: placeholder van drie regels.\n- `.buildflow/`: buildflow-werkbestanden (run `donker-thema`), geen onderdeel van de site.\n\n## 3. Draaien\n\n- Installeren: niet nodig.\n- Starten: open `index.html` direct, of `python3 -m http.server 8000` in de projectmap (`README.md`). URL: http://localhost:8000.\n- Seed-data, testaccounts, omgevingsvariabelen: none found.\n- Beschikbaar op deze machine: Node v22.22.1, Playwright 1.63.0 (via npx), Python 3.14.6.\n\n## 4. Tests\n\nNone found: geen testframework, geen testmap, geen CI-configuratie. Baseline: 0 tests, 0 mislukt.\n\nVoorstel (nog niet aanwezig, alleen een suggestie): omdat er geen buildstap of dependencies zijn, past een lichte browsertest het best.\n- Optie A: Playwright (1.63.0 is beschikbaar via npx) tegen `python3 -m http.server 8000`. Dit test wat een donker thema echt nodig heeft: klik op de knop, controleer de kleuren, herlaad de pagina en controleer of de keuze blijft (localStorage). Vraagt wel een devDependency of `npx`-aanroep.\n- Optie B: `node --test` (ingebouwd) voor pure logica, alleen zinvol als de themalogica in een los JS-bestand komt. jsdom is niet geïnstalleerd, dus DOM-gedrag is hiermee niet te testen zonder extra dependency.\n- Handmatig als minimum: pagina openen, thema wisselen, herladen, en ook controleren met `prefers-color-scheme` en zonder localStorage.\n\n## 5. Conventies\n\nEr is geen CLAUDE.md, AGENTS.md, CONTRIBUTING, lint- of formatconfig (none found). Wat de code feitelijk doet:\n- Nederlandse klassennamen en CSS-variabelen (`kop`, `held`, `voet`, `--tekst`, `--lijn`), Nederlandse content en commitbericht.\n- Kleuren staan als variabelen in `:root` en worden overal met `var(--...)` gebruikt. Uitzondering: geen, er zijn geen losse hex-waarden buiten `:root`.\n- `nav a` heeft `color: var(--tekst)`; `.logo` en `h2` gebruiken `--accent`; randen gebruiken `--lijn`.\n- Inspringing van 2 spaces, één regel per regel-CSS voor de meeste regels (`style.css`).\n- Docs en code botsen niet: `README.md` noemt \"warm crème, bruin, terracotta accent, serif-letter\" en dat komt overeen met `style.css`.\n\n## 6. Architectuur\n\nGeen lagen. De browser laadt `index.html` en `style.css`; er is geen server-logica, opslag, migratie, achtergrondjobs of integratie. ADR's of architectuurdocs: none found.\n\n## 7. Front-end stack\n\n- Framework: none found. Rendering: statische HTML.\n- Componentbibliotheek: none found. Styling: één handgeschreven `style.css` met CSS custom properties. Design tokens: `:root` in `style.css` (`--bg #fbf7f0`, `--tekst #2b2118`, `--accent #c2622d`, `--lijn #e3d8c7`, `--font` Georgia/serif).\n- Iconen, formulieren, validatie, state management, Storybook: none found.\n- Nieuwe pagina: nieuw `.html`-bestand naast `index.html`, dezelfde `<link rel=\"stylesheet\" href=\"style.css\">`. Nieuw component: HTML in de pagina plus een klasse in `style.css` (er zijn geen componentbestanden).\n- Compiled CSS: geen; `style.css` wordt rechtstreeks geladen.\n- Let op voor een donker thema: er is geen JS en geen `<script>`-tag. Een knop vraagt dus een eerste stukje script (inline of nieuw bestand, bijvoorbeeld `theme.js`). Alle kleuren lopen via variabelen, dus een tweede set waarden onder bijvoorbeeld `[data-theme=\"dark\"]` of `:root.donker` is het voor de hand liggende patroon.\n\n## 8. UI en design\n\n- Geen `design.md` of design system docs; de huisstijl is alleen vastgelegd in `style.css` en in één alinea in `README.md`.\n- Prototypes of mockups: none found.\n- Voorbeelden van huisstijl: er is één pagina. Goede referentie is de `.kop` (logo in accent, nav in tekstkleur, lijn eronder) en de `h2`-koppen (accent met lijn eronder) in `index.html` en `style.css`.\n\n## 9. Documentatie\n\n- `README.md` (Nederlands, kort, informeel) beschrijft draaien en huisstijl.\n- `docs/README.md` is een placeholder: \"Hier komt documentatie over de site, zoals ontwerpkeuzes.\" Geen tooling, geen docs-site, geen API-specs, geen ADR's, geen CHANGELOG (none found).\n- Git-historie heeft één commit, dus er is geen patroon te zien van wat een feature aan docs krijgt. Voorstel: een feature met zichtbaar gedrag krijgt een korte alinea in `README.md` bij de huisstijl, en ontwerpkeuzes komen in `docs/`.\n- Ontwerpdocumentatie hoort voorlopig in `docs/design/` (bestaat nog niet; voorstel), bijvoorbeeld `docs/design/thema.md`. Prototypes zouden in `docs/design/prototypes/` passen. Taal: Nederlands.\n\n## 10. Reviewstandaard\n\nEr is geen geschreven standaard. De reviewer handhaaft daarom:\n- [ ] Alle kleuren via CSS-variabelen uit `:root`, geen losse hex-waarden in regels (`style.css`).\n- [ ] Nederlandse namen voor klassen en variabelen, Nederlandse tekst (`index.html`, `style.css`).\n- [ ] Geen buildstap of dependency toegevoegd zonder reden (`README.md`: \"Geen buildstap\").\n- [ ] Site blijft werken zonder server (direct openen van `index.html`) en via `python3 -m http.server 8000`.\n- [ ] Contrast in beide thema's leesbaar (tekst, accent, lijnen).\n- [ ] README of `docs/` bijgewerkt als de huisstijl of het gedrag verandert.\n\n## 11. Let op\n\n- Geen gegenereerde code. Er staat geen JS in de repo, dus een script is nieuw terrein.\n- `.buildflow/` bevat werkbestanden en staat niet in de site; `.buildflow/.gitignore` bestaat.\n- Bij openen via `file://` werkt localStorage in de meeste browsers, maar per browser verschillend. Test via de http-server.\n- Een thema-keuze die pas na het laden wordt toegepast kan een korte flits in het lichte thema geven. Zet het toepassen daarom vroeg in de `<head>`.\n- Er zijn geen flaky of trage tests, want er zijn geen tests.\n\n## Features\n\n- **Startpagina met broodlijst en openingstijden**: enige pagina met kop, hero, brood en openingstijden · code: index.html, style.css · docs: README.md · run: none\n- **Huisstijl (lichte kleuren en serif-letter)**: CSS-variabelen voor kleur en lettertype · code: style.css · docs: README.md · run: none\n", "rel_root": "", "active_checkpoint": null};
+(function(){
+const T = {
+  en:{brief:"Brief",design:"Design",context:"Context",stageContext:"Context",stageBuild:"Build",stageReview:"Review",
+      stDone:"done",stCurrent:"now",stSkipped:"not needed",stTodo:"to do",stGiven:"spec supplied",
+      briefIntro:"What we build and why, agreed before anything is designed or planned. Every agent reads this as the contract.",
+      designIntro:"The reference the UI gate compares against. Made and reviewed before planning, so checkpoints can follow its screens and states.",
+      contextIntro:"What the agents know about this project and about the part of the codebase this feature touches. Every agent reads both first.",
+      designNotNeeded:"No design step needed",prototype:"Prototype",designFile:"Design file",states:"States",designReview:"Design review",
+      openProto:"Open prototype",featureCtx:"Feature context",projectCtx:"Project context",fbBrief:"Your feedback on the brief",fbDesign:"Your feedback on the design",
+      approvedAt:"approved",waitingApproval:"waiting for your approval",
+  plan:"Plan",progress:"Progress",costs:"Cost & time",learnings:"Learnings",feature:"Feature",next:"Next step",
+      phase:{intake:"Reading the project",brief:"Brief",awaiting_brief_approval:"Awaiting brief approval",design:"Design",awaiting_design_approval:"Awaiting design approval",planning:"Planning",awaiting_plan_approval:"Awaiting plan approval",building:"Building",documenting:"Documenting",awaiting_human_review:"Awaiting your review",paused:"Paused",done:"Done"},
+      checkpoints:"Checkpoints",cpPassed:"checkpoints passed",gatesPassed:"gates passed",tests:"tests passing",findings:"findings fixed",
+      tokens:"tokens",cost:"API-equivalent cost",active:"active build time",wall:"wall-clock",waiting:"waiting on you",
+      why:"Why this step",doneWhen:"Done when",plannedTests:"Planned tests",gateResults:"Gate results",attempt:"Attempt",
+      noAttempts:"Not run yet.",skipped:"Skipped",commit:"Commit",duration:"Duration",cpCost:"Cost",
+      behavior:"Behavior",ui:"UI",review:"Review",docs:"Docs",featureDocs:"Feature documentation",featureDocsIntro:"After the last checkpoint: the documentation of the feature as a whole, checked against the code and the brief.",docFiles:"Documentation files",fromFeedback:"from feedback",
+      planIntro:"Each checkpoint is a small, ordered slice of the feature. Earlier checkpoints are simpler, so a wrong decision surfaces while it is still cheap to fix. Nothing gets built until you approve this plan.",
+      yourFeedback:"Your feedback on this checkpoint",generalFeedback:"General feedback on the plan",copy:"Copy feedback for Claude",copied:"Feedback copied. Paste it in Claude Code.",
+      noFeedback:"No feedback written yet.",byRole:"By role",byCp:"By checkpoint / phase",byModel:"By model",
+      role:"role",model:"model",msgs:"calls",output:"output",cacheRead:"cache read",
+      costNote:"Measured from the Claude Code transcripts of this run. Cost is the API-equivalent at list prices; on a subscription you are not billed per token.",
+      noCost:"No cost measured yet. Run `bf.py cost` or finish a checkpoint.",
+      questions:"Questions answered during planning",assumptions:"Assumptions",outOfScope:"Out of scope",
+      noLearn:"No learnings yet. Human feedback and repeated mistakes end up here, and every agent reads this file before it starts.",
+      humanFeedback:"Human review rounds",report:"Report",finalReport:"Final report",cpReport:"Checkpoint report",
+      updated:"updated",idle:"idle / interrupted",interruptions:"Interruptions",interruptedAttempts:"interrupted attempts",idleNote:"silences over",subagents:"subagent runs",open:"open",fixed:"fixed",summary:"Summary",back:"Open full viewer",
+      empty:"The checkpoint planner has not written a plan yet.",
+      kind:"kind",name:"test",covers:"covers",
+      nextFor:{awaiting_brief_approval:"Read the brief below. Is this the right problem, the right scope and the right approach? Reply to Claude with changes, or write them in the box and press “Copy feedback”. Say “approved” to continue.",
+               awaiting_design_approval:"Click through the prototype and its states below. Does it look and behave like it should? Reply with changes, or say “approved” to start planning.",
+               awaiting_plan_approval:"Review the checkpoints below. Reply to Claude with changes, or write comments per checkpoint here and press “Copy feedback”. Say “approved” to start building.",
+               awaiting_human_review:"Try the feature yourself. Tell Claude what to change (it becomes new checkpoints and learnings), or say it's accepted.",
+               done:"Accepted and closed. The final report below is the record of this build."}},
+  nl:{brief:"Brief",design:"Design",context:"Context",stageContext:"Context",stageBuild:"Bouwen",stageReview:"Review",
+      stDone:"klaar",stCurrent:"nu",stSkipped:"niet nodig",stTodo:"nog te doen",stGiven:"spec aangeleverd",
+      briefIntro:"Wat we bouwen en waarom, afgesproken voordat er iets ontworpen of gepland wordt. Elke agent leest dit als het contract.",
+      designIntro:"De referentie waar de UI-gate tegen vergelijkt. Gemaakt en gereviewd vóór het plannen, zodat de checkpoints de schermen en states volgen.",
+      contextIntro:"Wat de agents weten over dit project en over het deel van de code dat deze feature raakt. Elke agent leest beide eerst.",
+      designNotNeeded:"Geen designstap nodig",prototype:"Prototype",designFile:"Designbestand",states:"States",designReview:"Design-review",
+      openProto:"Open prototype",featureCtx:"Featurecontext",projectCtx:"Projectcontext",fbBrief:"Jouw feedback op de brief",fbDesign:"Jouw feedback op het design",
+      approvedAt:"goedgekeurd",waitingApproval:"wacht op jouw akkoord",
+  plan:"Plan",progress:"Voortgang",costs:"Kosten & tijd",learnings:"Learnings",feature:"Feature",next:"Volgende stap",
+      phase:{intake:"Project lezen",brief:"Brief",awaiting_brief_approval:"Wacht op akkoord brief",design:"Design",awaiting_design_approval:"Wacht op akkoord design",planning:"Plannen",awaiting_plan_approval:"Wacht op akkoord plan",building:"Bouwen",documenting:"Documenteren",awaiting_human_review:"Wacht op jouw review",paused:"Gepauzeerd",done:"Klaar"},
+      checkpoints:"Checkpoints",cpPassed:"checkpoints geslaagd",gatesPassed:"gates geslaagd",tests:"tests groen",findings:"bevindingen opgelost",
+      tokens:"tokens",cost:"kosten (API-equivalent)",active:"actieve bouwtijd",wall:"doorlooptijd",waiting:"wachten op jou",
+      why:"Waarom deze stap",doneWhen:"Klaar wanneer",plannedTests:"Geplande tests",gateResults:"Gate-resultaten",attempt:"Poging",
+      noAttempts:"Nog niet uitgevoerd.",skipped:"Overgeslagen",commit:"Commit",duration:"Duur",cpCost:"Kosten",
+      behavior:"Gedrag",ui:"UI",review:"Review",docs:"Docs",featureDocs:"Documentatie van de feature",featureDocsIntro:"Na de laatste checkpoint: de documentatie van de feature als geheel, gecontroleerd tegen de code en de brief.",docFiles:"Documentatiebestanden",fromFeedback:"uit feedback",
+      planIntro:"Elke checkpoint is een klein, geordend stuk van de feature. De eerste zijn het simpelst, zodat een verkeerde keuze boven water komt zolang die nog goedkoop te herstellen is. Er wordt niets gebouwd voordat jij dit plan goedkeurt.",
+      yourFeedback:"Jouw feedback op deze checkpoint",generalFeedback:"Algemene feedback op het plan",copy:"Kopieer feedback voor Claude",copied:"Feedback gekopieerd. Plak het in Claude Code.",
+      noFeedback:"Nog geen feedback geschreven.",byRole:"Per rol",byCp:"Per checkpoint / fase",byModel:"Per model",
+      role:"rol",model:"model",msgs:"calls",output:"output",cacheRead:"cache read",
+      costNote:"Gemeten uit de Claude Code-transcripts van deze run. Kosten zijn het API-equivalent tegen lijstprijzen; met een abonnement betaal je niet per token.",
+      noCost:"Nog geen kosten gemeten. Draai `bf.py cost` of rond een checkpoint af.",
+      questions:"Vragen beantwoord tijdens het plannen",assumptions:"Aannames",outOfScope:"Buiten scope",
+      noLearn:"Nog geen learnings. Feedback van jou en herhaalde fouten komen hier, en elke agent leest dit bestand voordat hij begint.",
+      humanFeedback:"Review-rondes",report:"Rapport",finalReport:"Eindrapport",cpReport:"Checkpoint-rapport",
+      updated:"bijgewerkt",idle:"stil / onderbroken",interruptions:"Onderbrekingen",interruptedAttempts:"onderbroken pogingen",idleNote:"stiltes langer dan",subagents:"subagent-runs",open:"open",fixed:"opgelost",summary:"Samenvatting",back:"Open volledige viewer",
+      empty:"De checkpoint-planner heeft nog geen plan geschreven.",
+      kind:"soort",name:"test",covers:"dekt",
+      nextFor:{awaiting_brief_approval:"Lees de brief hieronder. Is dit het juiste probleem, de juiste scope en de juiste aanpak? Geef Claude je wijzigingen, of schrijf ze in het vak en druk op “Kopieer feedback”. Zeg “akkoord” om door te gaan.",
+               awaiting_design_approval:"Klik door het prototype en de states hieronder. Ziet het eruit en werkt het zoals het moet? Geef je wijzigingen, of zeg “akkoord” om te gaan plannen.",
+               awaiting_plan_approval:"Bekijk de checkpoints hieronder. Geef Claude je wijzigingen, of schrijf hier per checkpoint opmerkingen en druk op “Kopieer feedback”. Zeg “akkoord” om te beginnen met bouwen.",
+               awaiting_human_review:"Probeer de feature zelf. Vertel Claude wat er anders moet (dat worden nieuwe checkpoints en learnings), of zeg dat hij geaccepteerd is.",
+               done:"Geaccepteerd en afgesloten. Het eindrapport hieronder is het verslag van deze build."}}
+};
+// live viewer (served by bf serve): approve, send feedback, accept, inbox
+// overview of all runs, and the active checkpoint
+Object.assign(T.en, {allRuns:"All features",overview:"Overview",ovTitle:"Features built with buildflow",
+  ovIntro:"Every run in this project: what is open, what is done, and what it cost. Open a run for its plan, gates and reports.",
+  ovRuns:"Runs",ovFeatures:"Existing product features",ovFeaturesIntro:"What the product already has, from the project context (.buildflow/context.md). A new run can extend one of these.",
+  ovNoFeatures:"No Features section in .buildflow/context.md yet. The project scout writes it on the next context refresh.",
+  ovNoRuns:"No runs yet. Start one with /buildflow.",ovOpen:"open",ovDone:"done",ovTotal:"runs",ovCost:"total cost",ovActive:"total active time",
+  started:"started",finished:"finished",branch:"branch",openViewer:"Open viewer",activeRun:"active",nowCp:"now",nextCp:"next"});
+Object.assign(T.nl, {allRuns:"Alle features",overview:"Overzicht",ovTitle:"Features gebouwd met buildflow",
+  ovIntro:"Elke run in dit project: wat open staat, wat klaar is en wat het kostte. Open een run voor het plan, de gates en de rapporten.",
+  ovRuns:"Runs",ovFeatures:"Bestaande features van het product",ovFeaturesIntro:"Wat het product al heeft, uit de projectcontext (.buildflow/context.md). Een nieuwe run kan daar een van uitbreiden.",
+  ovNoFeatures:"Nog geen Features-sectie in .buildflow/context.md. De projectverkenner schrijft die bij de volgende verversing van de context.",
+  ovNoRuns:"Nog geen runs. Start er een met /buildflow.",ovOpen:"open",ovDone:"klaar",ovTotal:"runs",ovCost:"totale kosten",ovActive:"totale actieve tijd",
+  started:"gestart",finished:"afgerond",branch:"branch",openViewer:"Open viewer",activeRun:"actief",nowCp:"nu",nextCp:"volgende"});
+// checkpoint reports: cost scoped to the checkpoint, the run total as one line
+Object.assign(T.en, {cpCosts:"Cost & time of this checkpoint",runSoFar:"Run so far",activeShort:"active",cpPassedRun:"checkpoints passed in the run",
+  noSplit:"No split by role or model for this checkpoint: the run's cost was measured before bf recorded it. Run `bf.py report <cpNN>` to rewrite this report."});
+Object.assign(T.nl, {cpCosts:"Kosten & tijd van deze checkpoint",runSoFar:"Run tot nu toe",activeShort:"actief",cpPassedRun:"checkpoints geslaagd in de run",
+  noSplit:"Geen verdeling per rol of model voor deze checkpoint: de kosten zijn gemeten voordat bf die bijhield. Draai `bf.py report <cpNN>` om dit rapport opnieuw te schrijven."});
+Object.assign(T.en, {send:"Send to Claude",copy2:"Copy feedback",sent:"Sent. Claude picks it up during the session.",
+  approve:{brief:"Approve brief",design:"Approve design",plan:"Approve plan",review:"Accept feature"},
+  confirm:{brief:"Approve the brief? Claude then moves on to the design (or straight to planning).",design:"Approve the design? Claude then plans the checkpoints.",plan:"Approve the plan? Claude then starts building.",review:"Accept the feature? This closes the run and writes the final report."},
+  yes:{approve:"Yes, approve",accept:"Yes, accept"},cancel:"Cancel",
+  approveSent:{approve:"Approval sent. Claude picks it up.",accept:"Acceptance sent. Claude closes the run."},
+  errPhase:"Not possible: the run is no longer at this step. The page refreshes.",errDup:"Already sent; it is waiting for Claude.",
+  errToken:"Refused: this page does not belong to the running bf serve. Reload the page.",
+  errOffline:"No connection to bf serve. Use “Copy feedback” and paste it in the chat.",errText:"Write something first.",errSize:"Too long (max 8000 characters).",
+  inbox:"To Claude",inboxIntro:"What you send here, Claude reads during the session. Chat works as well.",inboxEmpty:"Nothing sent yet.",
+  stL:{new:"sent",read:"read",handled:"handled"},msgL:"Message to Claude",msgReview:"Your feedback on the feature",
+  typeL:{approve:"approval",feedback:"feedback",accept:"acceptance",message:"message"},
+  live:"live",offline:"offline",updatedAt:"updated",
+  nextForLive:{awaiting_brief_approval:"Read the brief below. Is this the right problem, scope and approach? Send changes from the box under the brief, or approve it here. Replying in the chat works too.",
+    awaiting_design_approval:"Click through the prototype and its states below. Send changes from the box under the design, or approve it here to start planning.",
+    awaiting_plan_approval:"Review the checkpoints below. Send comments per checkpoint or on the whole plan, or approve it here to start building.",
+    awaiting_human_review:"Try the feature yourself. Send what should change below (it becomes new checkpoints and learnings), or accept it here."}});
+Object.assign(T.nl, {send:"Stuur naar Claude",copy2:"Kopieer feedback",sent:"Verstuurd. Claude leest het mee tijdens de sessie.",
+  approve:{brief:"Keur brief goed",design:"Keur design goed",plan:"Keur plan goed",review:"Accepteer feature"},
+  confirm:{brief:"Brief goedkeuren? Claude gaat daarna verder met het design (of meteen met plannen).",design:"Design goedkeuren? Claude plant daarna de checkpoints.",plan:"Plan goedkeuren? Claude begint daarna met bouwen.",review:"Feature accepteren? De run wordt afgesloten met het eindrapport."},
+  yes:{approve:"Ja, keur goed",accept:"Ja, accepteer"},cancel:"Annuleer",
+  approveSent:{approve:"Goedkeuring verstuurd. Claude pakt het op.",accept:"Acceptatie verstuurd. Claude sluit de run af."},
+  errPhase:"Kan niet: de run staat niet (meer) in deze stap. De pagina wordt ververst.",errDup:"Al verstuurd; het wacht op Claude.",
+  errToken:"Geweigerd: deze pagina hoort niet bij de draaiende bf serve. Herlaad de pagina.",
+  errOffline:"Geen verbinding met bf serve. Gebruik “Kopieer feedback” en plak het in de chat.",errText:"Schrijf eerst iets.",errSize:"Te lang (maximaal 8000 tekens).",
+  inbox:"Naar Claude",inboxIntro:"Wat je hier verstuurt, leest Claude tijdens de sessie. De chat werkt ook gewoon.",inboxEmpty:"Nog niets verstuurd.",
+  stL:{new:"verstuurd",read:"gelezen",handled:"verwerkt"},msgL:"Bericht aan Claude",msgReview:"Jouw feedback op de feature",
+  typeL:{approve:"goedkeuring",feedback:"feedback",accept:"acceptatie",message:"bericht"},
+  live:"live",offline:"offline",updatedAt:"bijgewerkt",
+  nextForLive:{awaiting_brief_approval:"Lees de brief hieronder. Is dit het juiste probleem, de juiste scope en de juiste aanpak? Stuur wijzigingen via het vak onder de brief, of keur hem hier goed. Antwoorden in de chat kan ook.",
+    awaiting_design_approval:"Klik door het prototype en de states hieronder. Stuur wijzigingen via het vak onder het design, of keur het hier goed om te gaan plannen.",
+    awaiting_plan_approval:"Bekijk de checkpoints hieronder. Stuur opmerkingen per checkpoint of op het hele plan, of keur het hier goed om te beginnen met bouwen.",
+    awaiting_human_review:"Probeer de feature zelf. Stuur hieronder wat er anders moet (dat worden nieuwe checkpoints en learnings), of accepteer hem hier."}});
+const STOP_STAGE = {awaiting_brief_approval:"brief",awaiting_design_approval:"design",awaiting_plan_approval:"plan",awaiting_human_review:"review"};
+const GATES = ["behavior","ui","review","docs"];
+let D = window.BF, L;
+const TOKEN = (document.querySelector("meta[name=bf-token]")||{}).content || "";
+let lastActive, activeOverride = null, userMoved = false;
+let LIVE = false, INBOX = [], VER = {}, liveOk = null, lastData = new Date(), confirming = false, lastInput = 0, staleWarned = false;
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const inline = s => esc(s).replace(/`([^`]+)`/g,"<code>$1</code>");
+const tok = n => { n = n||0; return n>=1e6 ? (n/1e6).toFixed(2)+"M" : n>=1e3 ? (n/1e3).toFixed(1)+"k" : String(n); };
+const usd = x => x==null ? "–" : "$"+x.toFixed(2);
+const dur = s => { if(s==null) return "–"; s=Math.round(s); const h=Math.floor(s/3600), m=Math.floor(s%3600/60), r=s%60; return h? `${h}h ${String(m).padStart(2,"0")}m` : m? `${m}m ${String(r).padStart(2,"0")}s` : `${r}s`; };
+const store = { get(k){ try{return localStorage.getItem(k)}catch(e){return null} }, set(k,v){ try{localStorage.setItem(k,v)}catch(e){} } };
+
+function allFindings(cp, gate){ const out=[]; (gate?[gate]:GATES).forEach(g => (cp.gates[g].attempts||[]).forEach(a => (a.findings||[]).forEach(f => out.push(f)))); return out; }
+function lastMetrics(cp, g){ const at = cp.gates[g].attempts||[]; for(let i=at.length-1;i>=0;i--) if(at[i].metrics) return at[i].metrics; return {}; }
+
+function stats(only){
+  const cps = only || D.checkpoints||[];
+  const gatesAll = cps.flatMap(c => GATES.filter(g => c.gates[g].status!=="skipped").map(g => c.gates[g].status));
+  const f = cps.flatMap(c => allFindings(c));
+  const tt = cps.reduce((s,c)=> s + (+lastMetrics(c,"behavior").tests_total||0),0);
+  const tp = cps.reduce((s,c)=> s + (+lastMetrics(c,"behavior").tests_passed||0),0);
+  return { n:cps.length, passed:cps.filter(c=>c.status==="passed").length,
+    gatesPassed:gatesAll.filter(s=>s==="passed").length, gates:gatesAll.length,
+    fTotal:f.length, fFixed:f.filter(x=>x.status==="fixed").length, tt, tp };
+}
+
+function chip(cp, g){
+  const s = cp.gates[g].status;
+  const icon = s==="passed"?"✓":s==="failed"?"✕":s==="running"?"●":s==="interrupted"?"⏸":"";
+  return `<span class="chip ${s}" title="${esc(g)}: ${esc(s)}">${icon} ${esc(L[g])}</span>`;
+}
+
+function md(src){
+  const lines = String(src||"").replace(/\r/g,"").split("\n");
+  const inl = t => esc(t).replace(/`([^`]+)`/g,"<code>$1</code>").replace(/\*\*([^*]+)\*\*/g,"<b>$1</b>")
+    .replace(/(^|\W)\*([^*\s][^*]*)\*(?=\W|$)/g,"$1<i>$2</i>")
+    .replace(/\[([^\]]+)\]\((https?:[^)\s]+)\)/g,'<a href="$2" target="_blank" rel="noopener">$1</a>');
+  let out = "", list = null, para = [];
+  const flushP = () => { if(para.length){ out += `<p>${inl(para.join(" "))}</p>`; para = []; } };
+  const flushL = () => { if(list){ out += `</${list}>`; list = null; } };
+  for(const raw of lines){
+    const l = raw.trimEnd();
+    let m;
+    if(!l.trim()){ flushP(); flushL(); continue; }
+    if((m = l.match(/^(#{1,4})\s+(.*)$/))){ flushP(); flushL(); const n=Math.min(3,m[1].length); out += `<h${n}>${inl(m[2])}</h${n}>`; continue; }
+    if((m = l.match(/^\s*[-*]\s+(.*)$/))){ flushP(); if(list!=="ul"){ flushL(); out += "<ul>"; list="ul"; } out += `<li>${inl(m[1])}</li>`; continue; }
+    if((m = l.match(/^\s*\d+[.)]\s+(.*)$/))){ flushP(); if(list!=="ol"){ flushL(); out += "<ol>"; list="ol"; } out += `<li>${inl(m[1])}</li>`; continue; }
+    if(l.startsWith("```")) continue;
+    flushL(); if(/^\*\*[^*]+\*\*/.test(l.trim())) flushP(); para.push(l.trim());
+  }
+  flushP(); flushL();
+  return out;
+}
+const PHASE_IDX = {intake:0,brief:1,awaiting_brief_approval:1,design:2,awaiting_design_approval:2,planning:3,awaiting_plan_approval:3,building:4,documenting:4,awaiting_human_review:5,done:6};
+function phaseIdx(){ return PHASE_IDX[D.phase==="paused" ? (D.paused_from||"building") : D.phase] ?? 4; }
+function stg(k){ return (D.stages||{})[k] || {}; }
+// the checkpoint the run is on (running/blocked, else the next to start while building); bf puts it in the data
+function activeId(){
+  if(D.focus) return null;
+  if(D.active_checkpoint !== undefined) return D.active_checkpoint;
+  const cps = D.checkpoints||[], c = cps.find(x => x.status==="in_progress" || x.status==="blocked"); if(c) return c.id;
+  const ph = D.phase==="paused" ? D.paused_from : D.phase;
+  const n = ph==="building" && cps.find(x => x.status!=="passed"); return n ? n.id : null;
+}
+function relLink(p){ if(!p) return ""; return /^(https?:|\/)/.test(p) ? p : (D.rel_root||"") + p; }
+function stepper(){
+  const i = phaseIdx(), dz = stg("design"), b = stg("brief");
+  const steps = [["stageContext",0],["brief",1],["design",2],["plan",3],["stageBuild",4],["stageReview",5]];
+  return `<ol class="stepper">${steps.map(([k,n]) => {
+    let cls = i>n ? "done" : i===n ? "current" : "", sub = i>n ? L.stDone : i===n ? (D.phase.startsWith("awaiting") ? L.waitingApproval : L.stCurrent) : L.stTodo;
+    if(n===2 && (dz.status==="not_needed" || (i>2 && !dz.needed))){ cls = "skipped"; sub = L.stSkipped; }
+    if(n===1 && b.source==="given" && i>1) sub = L.stGiven;
+    if(i===6 && n===5){ cls="done"; sub=L.stDone; }
+    const act = n===4 && i===4 && activeId();
+    if(act) sub = `${L.nowCp}: ${act}`;
+    return `<li class="stap ${cls}"><b>${esc(L[k])}</b><span>${esc(sub)}</span></li>`; }).join("")}</ol>`;
+}
+function attemptsHtml(at){
+  return at.map(a => `<div class="poging">
+      <div class="poging-kop">${L.attempt} ${a.n} <span class="chip ${a.result||"running"}">${esc(a.result||"running")}</span></div>
+      ${a.summary ? `<p class="klein">${inline(a.summary)}</p>` : ""}
+      ${a.metrics ? `<p class="klein grijs">${Object.entries(a.metrics).map(([k,v])=>`${esc(k)}: <b>${esc(v)}</b>`).join(" · ")}</p>` : ""}
+      ${(a.findings||[]).map(f => `<div class="finding"><span class="sev ${esc((f.severity||"").toLowerCase())}">${esc(f.severity||"?")}</span><span>${inline(f.title)}${f.location?` <span class="grijs">· ${inline(f.location)}</span>`:""}</span><span class="klein ${f.status==="fixed"?"":"grijs"}">${esc(f.status||"open")}</span></div>`).join("")}
+    </div>`).join("");
+}
+// buttons under a feedback box: live = send (primary) + copy (secondary); static file = copy only
+function fbButtons(id, withCopy){
+  if(!LIVE) return withCopy ? `<p class="knoppen"><button type="button" class="knop zwart copy-fb">${L.copy}</button></p>` : "";
+  return `<p class="knoppen"><button type="button" class="knop zwart send-fb" data-for="${id}">${L.send}</button>${withCopy ? `<button type="button" class="knop rand klein copy-fb">${L.copy2}</button>` : ""}</p>`;
+}
+function fbBox(stage, label){
+  const key = `bf:${D.slug}:fb:${stage}`;
+  return `<div class="feedback-box" style="margin-top:22px"><label for="fb-${stage}"><b>${label}</b></label><textarea id="fb-${stage}" data-key="${esc(key)}" data-cp="${stage}">${esc(store.get(key)||"")}</textarea>
+    ${fbButtons("fb-"+stage, true)}</div>`;
+}
+
+function briefSection(){
+  const b = stg("brief");
+  if(!D.brief_text && phaseIdx() < 1) return "";
+  const waiting = D.phase==="awaiting_brief_approval" && !D.focus;
+  const status = b.status==="approved" ? `<span class="pil zwart">✓ ${L.approvedAt}</span>` : waiting ? `<span class="pil geel">${L.waitingApproval}</span>` : "";
+  return `<section class="sectie" id="brief"><div class="wrap">
+    <div class="kop"><div><span class="eyebrow">brief.md ${b.source==="given" ? "· "+esc(L.stGiven) : ""}</span><h2>${L.brief} ${status}</h2></div><p class="grijs">${L.briefIntro}</p></div>
+    ${D.brief_text ? `<div class="prose">${md(D.brief_text)}</div>` : `<div class="leeg">–</div>`}
+    ${waiting ? fbBox("brief", L.fbBrief) : ""}
+  </div></section>`;
+}
+
+function designSection(){
+  const d = stg("design");
+  if(phaseIdx() < 2 && !d.needed) return "";
+  const waiting = D.phase==="awaiting_design_approval" && !D.focus;
+  const ref = D.project && D.project.design_ref;
+  if(d.status==="not_needed"){
+    return `<section class="sectie vlak" id="design"><div class="wrap">
+      <div class="kop"><div><span class="eyebrow">${L.design}</span><h2>${L.designNotNeeded}</h2></div><p class="grijs">${inline(d.reason||"")}</p></div>
+      ${ref ? `<p>${L.designFile}: <a href="${esc(relLink(ref))}">${esc(ref)}</a></p>` : ""}
+    </div></section>`;
+  }
+  const rv = d.review || {}, at = rv.attempts || [];
+  const status = d.status==="approved" ? `<span class="pil zwart">✓ ${L.approvedAt}</span>` : waiting ? `<span class="pil geel">${L.waitingApproval}</span>` : "";
+  const proto = d.prototype || (D.project && D.project.prototype);
+  return `<section class="sectie vlak" id="design"><div class="wrap">
+    <div class="kop"><div><span class="eyebrow">${L.design}${d.reason ? " · "+esc(d.reason) : ""}</span><h2>${L.design} ${status}</h2></div><p class="grijs">${L.designIntro}</p></div>
+    <div class="twee">
+      <div class="blok">${proto ? `<h4>${L.prototype}</h4><p><a class="knop klein" href="${esc(relLink(proto))}" target="_blank" rel="noopener">${L.openProto} ↗</a><code class="klein pad">${esc(proto)}</code></p>` : ""}
+        ${(d.design_md||ref) ? `<h4 style="margin-top:12px">${L.designFile}</h4><p><a href="${esc(relLink(d.design_md||ref))}">${esc(d.design_md||ref)}</a></p>` : ""}
+        ${(d.states||[]).length ? `<h4 style="margin-top:12px">${L.states} (${d.states.length})</h4><div class="statenrij">${d.states.map((x,i)=>`<a class="chip${i===0&&!D.focus?" aan":""}" data-state="${esc(x)}" href="${esc(relLink(proto))}?state=${encodeURIComponent(x)}" target="_blank" rel="noopener">${esc(x)}</a>`).join("")}</div>` : ""}</div>
+      <div class="blok"><h4>${L.designReview} ${rv.status ? `<span class="chip ${esc(rv.status)}">${esc(rv.status)}</span>` : ""}</h4>${at.length ? attemptsHtml(at) : `<p class="klein grijs">${L.noAttempts}</p>`}</div>
+    </div>
+    ${proto && !D.focus ? `<iframe class="proto-frame" id="proto" style="margin-top:24px" src="${esc(relLink(proto))}${(d.states||[]).length?"?state="+encodeURIComponent(d.states[0]):""}" title="${esc(L.prototype)}" loading="lazy"></iframe>` : ""}
+    ${waiting ? fbBox("design", L.fbDesign) : ""}
+  </div></section>`;
+}
+
+function contextSection(){
+  if(!D.feature_context_text && !D.project_context_text) return "";
+  const c = stg("context");
+  return `<section class="sectie" id="context"><div class="wrap">
+    <div class="kop"><div><span class="eyebrow">${esc(c.feature_file||"")}</span><h2>${L.context}</h2></div><p class="grijs">${L.contextIntro}</p></div>
+    ${D.feature_context_text ? `<details class="ctx" id="ctx-feature"><summary>${L.featureCtx}</summary><div class="prose">${md(D.feature_context_text)}</div></details>` : ""}
+    ${D.project_context_text ? `<details class="ctx" id="ctx-project"><summary>${L.projectCtx} <span class="grijs klein">.buildflow/context.md</span></summary><div class="prose">${md(D.project_context_text)}</div></details>` : ""}
+  </div></section>`;
+}
+
+function nextText(){ return (LIVE && !D.focus && L.nextForLive[D.phase]) || (L.nextFor && L.nextFor[D.phase]) || D.next_action; }
+
+function liveBadge(){
+  if(!LIVE) return `<span class="upd">${esc(L.updated)} ${new Date(D.updated_at).toLocaleString()}</span>`;
+  const t = lastData.toLocaleTimeString([], {hour:"2-digit",minute:"2-digit",second:"2-digit"});
+  return `<span class="live ${liveOk===false?"uit":"aan"}" id="bf-live"><i aria-hidden="true"></i>${liveOk===false ? esc(L.offline) : esc(L.live)} · ${esc(L.updatedAt)} ${t}</span>`;
+}
+function setLive(ok){
+  if(ok === liveOk) return;
+  if(ok && liveOk === false){ VER = {}; staleWarned = false; }  // back online (maybe a restarted server): refetch everything
+  liveOk = ok; const e = $("#bf-live"); if(e) e.outerHTML = liveBadge();
+}
+
+function header(){
+  const ph = D.phase;
+  return `<div class="topbalk"><div class="wrap"><span>buildflow · <b>${esc(D.slug)}</b></span>${liveBadge()}</div></div>
+  <header class="header"><div class="wrap">
+    <a class="woordmerk" href="#top"><b>build</b><span>flow</span></a>
+    <a class="terug" href="../index.html#voorbeeld">← ${esc(L.allRuns)}</a>
+    <span class="pil ${ph==="done"?"zwart":ph.startsWith("awaiting")?"geel":"rand"}">${esc(L.phase[ph]||ph)}</span>
+    ${D.focus ? "" : `<nav class="nav">${(window.__nav||[]).map(([id,lbl])=>`<a href="#${id}">${esc(lbl)}</a>`).join("")}</nav>`}
+  </div></header>`;
+}
+
+function hero(){
+  const s = stats(), c = D.cost, t = c && c.time;
+  const cp = scopeId() && (D.checkpoints||[]).find(x => x.id===scopeId());
+  if(cp){
+    // checkpoint report: this checkpoint's gates, tests, findings and cost; run progress is one tile
+    const one = stats([cp]), sc = scoped() || {}, b = sc.b;
+    return `<section class="hero" id="top"><div class="wrap">
+      <div class="hero-grid">
+        <div><span class="eyebrow">${esc(L.cpReport)} · ${esc(cp.id)}</span><h1><span class="mark">${esc(cp.title)}</span></h1><p class="lead">${inline(D.title)}</p></div>
+        <div class="volgende"><span class="eyebrow">${L.next}</span><p>${inline(nextText())}</p></div>
+      </div>
+      <div class="kpis">
+        <div class="kpi"><span class="w">${s.passed}/${s.n}</span><span class="l">${L.cpPassedRun}</span></div>
+        <div class="kpi"><span class="w">${one.gatesPassed}/${one.gates}</span><span class="l">${L.gatesPassed}</span></div>
+        <div class="kpi"><span class="w">${one.tp}/${one.tt}</span><span class="l">${L.tests}</span></div>
+        <div class="kpi"><span class="w">${one.fFixed}/${one.fTotal}</span><span class="l">${L.findings}</span></div>
+        <div class="kpi"><span class="w">${b?tok(b.total_tokens):"–"}</span><span class="l">${L.tokens}</span></div>
+        <div class="kpi"><span class="w">${b?usd(b.usd):"–"}</span><span class="l">${L.cost}</span></div>
+        <div class="kpi"><span class="w">${dur(sc.active)}</span><span class="l">${L.active}</span></div>
+      </div>
+    </div></section>`;
+  }
+  const focusLabel = D.focus==="final" ? L.finalReport : D.focus ? `${L.cpReport} · ${D.focus}` : `${L.feature} · ${D.slug}`;
+  return `<section class="hero" id="top"><div class="wrap">
+    <div class="hero-grid">
+      <div><span class="eyebrow">${esc(focusLabel)}</span><h1><span class="mark">${esc(D.title)}</span></h1>
+        ${D.goal ? `<p class="lead">${inline(D.goal)}</p>` : ""}</div>
+      <div class="volgende"><span class="eyebrow">${L.next}</span><p>${inline(nextText())}</p>${LIVE && !D.focus ? `<div id="bf-acties-slot"></div>` : ""}</div>
+    </div>
+    ${LIVE && !D.focus ? `<div id="bf-inbox-slot"></div>` : ""}
+    ${stepper()}
+    ${(D.checkpoints||[]).length ? `<div class="rail" aria-hidden="true">${(D.checkpoints||[]).map(c=>`<i class="${c.status}${c.id===activeId()?" actief":""}" title="${esc(c.id)} ${esc(c.title)}"></i>`).join("")}</div>
+    <div class="kpis">
+      <div class="kpi"><span class="w">${s.passed}/${s.n}</span><span class="l">${L.cpPassed}</span></div>
+      <div class="kpi"><span class="w">${s.gatesPassed}/${s.gates}</span><span class="l">${L.gatesPassed}</span></div>
+      <div class="kpi"><span class="w">${s.tp}/${s.tt}</span><span class="l">${L.tests}</span></div>
+      <div class="kpi"><span class="w">${s.fFixed}/${s.fTotal}</span><span class="l">${L.findings}</span></div>
+      <div class="kpi"><span class="w">${c?tok(c.totals.total_tokens):"–"}</span><span class="l">${L.tokens}</span></div>
+      <div class="kpi"><span class="w">${c?usd(c.totals.usd):"–"}</span><span class="l">${L.cost}</span></div>
+      <div class="kpi"><span class="w">${t?dur(t.active_seconds):"–"}</span><span class="l">${L.active}</span></div>
+    </div>` : ""}
+  </div></section>`;
+}
+
+function testsTable(tests){
+  if(!tests || !tests.length) return `<p class="grijs klein">–</p>`;
+  return `<div class="scroll"><table class="tabel stack"><thead><tr><th>${L.name}</th><th>${L.kind}</th><th>${L.covers}</th></tr></thead><tbody>
+    ${tests.map(t => typeof t==="string" ? `<tr><td class="hoofd" colspan="3">${inline(t)}</td></tr>` : `<tr><td class="hoofd">${inline(t.name||t.title)}</td><td data-l="${L.kind}">${esc(t.kind||"")}</td><td data-l="${L.covers}">${inline(t.covers||t.given_when_then||"")}</td></tr>`).join("")}
+  </tbody></table></div>`;
+}
+
+function gateBlock(cp, g){
+  const gs = cp.gates[g];
+  if(gs.status==="skipped") return `<div class="blok"><h4>${L[g]} · <span class="grijs">${L.skipped}</span></h4><p class="klein grijs">${inline(gs.skip_reason||"")}</p></div>`;
+  const at = gs.attempts||[];
+  return `<div class="blok"><h4>${L[g]} ${chip(cp,g)}</h4>
+    ${at.length ? attemptsHtml(at) : `<p class="klein grijs">${L.noAttempts}</p>`}
+  </div>`;
+}
+
+function cpCard(cp, open){
+  const c = D.cost, b = c && c.by_checkpoint[cp.id], sec = c && c.time.checkpoint_seconds[cp.id];
+  const planMode = D.phase==="awaiting_plan_approval" && !D.focus;
+  const key = `bf:${D.slug}:fb:${cp.id}`;
+  const act = cp.id === activeId();
+  return `<details class="cp ${cp.status}${act?" actief":""}" ${open||act?"open":""} id="${cp.id}"${act?' aria-current="step"':""}>
+    <summary><span class="nr">${cp.n}</span>
+      <div><h3>${act ? `<span class="chip running">▶ ${esc(cp.status==="pending" ? L.nextCp : L.nowCp)}</span> ` : ""}${esc(cp.title)} ${cp.source==="feedback"?`<span class="chip feedback">${L.fromFeedback}</span>`:""}</h3><div class="sub">${inline(cp.summary)}</div></div>
+      <div class="gates">${GATES.map(g=>chip(cp,g)).join("")}</div>
+    </summary>
+    <div class="cp-body">
+      <div class="twee">
+        ${cp.why ? `<div class="blok"><h4>${L.why}</h4><p>${inline(cp.why)}</p></div>` : ""}
+        ${(cp.done_when||[]).length ? `<div class="blok"><h4>${L.doneWhen}</h4><ul class="check ${cp.status==="passed"?"done":""}">${cp.done_when.map(x=>`<li>${inline(x)}</li>`).join("")}</ul></div>` : ""}
+      </div>
+      ${cp.ui_scope ? `<p class="klein"><b>UI scope:</b> ${inline(cp.ui_scope)}</p>` : ""}
+      ${cp.docs_scope ? `<p class="klein"><b>Docs scope:</b> ${inline(cp.docs_scope)}</p>` : ""}
+      <div class="blok"><h4>${L.plannedTests} (${(cp.tests||[]).length})</h4>${testsTable(cp.tests)}</div>
+      ${cp.status!=="pending" ? `<div class="blok"><h4>${L.gateResults}</h4><div class="twee">${GATES.map(g=>gateBlock(cp,g)).join("")}</div></div>` : ""}
+      ${(cp.started_at) ? `<p class="klein grijs">${L.duration}: <b>${dur(sec)}</b> · ${L.cpCost}: <b>${b?usd(b.usd):"–"}</b> (${b?tok(b.total_tokens):"–"} ${L.tokens}) · ${L.commit}: <code>${esc((cp.commit||"–").slice(0,10))}</code>${cp.report && !D.focus?` · <a href="${esc(cp.report)}">${L.report}</a>`:""}</p>` : ""}
+      ${planMode ? `<div class="feedback-box"><label class="klein" for="fb-${cp.id}"><b>${L.yourFeedback}</b></label><textarea id="fb-${cp.id}" data-key="${esc(key)}" data-cp="${cp.id}">${esc(store.get(key)||"")}</textarea>${fbButtons("fb-"+cp.id, false)}</div>` : ""}
+    </div>
+  </details>`;
+}
+
+function planSection(){
+  const cps = D.checkpoints||[];
+  if(!cps.length && phaseIdx() < 3) return "";
+  const planMode = D.phase==="awaiting_plan_approval";
+  const list = (title, arr) => arr && arr.length ? `<div class="blok"><h4>${title}</h4><ul class="check">${arr.map(q=>`<li>${typeof q==="string" ? inline(q) : inline(q.q||q.question||"") + (q.a||q.answer ? ` → <b>${inline(q.a||q.answer)}</b>` : "")}</li>`).join("")}</ul></div>` : "";
+  const gkey = `bf:${D.slug}:fb:general`;
+  return `<section class="sectie vlak" id="plan"><div class="wrap">
+    <div class="kop"><div><span class="eyebrow">${L.checkpoints}</span><h2>${L.plan}</h2></div><p class="grijs">${L.planIntro}</p></div>
+    ${cps.length ? `<div class="cps">${cps.map(c=>cpCard(c, planMode || c.status==="in_progress" || c.status==="blocked")).join("")}</div>` : `<div class="leeg">${L.empty}</div>`}
+    <div class="twee" style="margin-top:22px">${list(L.questions, D.questions)}${list(L.assumptions, D.assumptions)}${list(L.outOfScope, D.out_of_scope)}</div>
+    ${planMode ? `<div class="feedback-box" style="margin-top:22px"><label for="fb-general"><b>${L.generalFeedback}</b></label><textarea id="fb-general" data-key="${esc(gkey)}" data-cp="general">${esc(store.get(gkey)||"")}</textarea>
+      ${fbButtons("fb-general", true)}</div>` : ""}
+  </div></section>`;
+}
+
+function featureDocsBlock(){
+  const fd = stg("docs"), at = fd.attempts || [];
+  if(phaseIdx() < 4 || (!at.length && D.phase!=="documenting")) return "";
+  const cpFiles = (D.checkpoints||[]).flatMap(c => (c.gates.docs && c.gates.docs.attempts || []).flatMap(a => a.files||[]));
+  const files = [...new Set([...cpFiles, ...at.flatMap(a => a.files||[]), stg("design").design_md, stg("design").prototype].filter(Boolean))];
+  return `<h3 style="margin:28px 0 6px">${L.featureDocs} <span class="chip ${esc(fd.status||"pending")}">${esc(fd.status||"pending")}</span></h3>
+    <p class="klein grijs" style="margin-bottom:10px">${L.featureDocsIntro}</p>
+    ${at.length ? attemptsHtml(at) : ""}
+    ${files.length ? `<div class="poging"><div class="poging-kop">${L.docFiles} (${files.length})</div>${files.map(f=>`<div class="klein"><a href="${esc(relLink(f))}"><code>${esc(f)}</code></a></div>`).join("")}</div>` : ""}`;
+}
+
+function progressSection(){
+  const cps = D.checkpoints||[];
+  if(phaseIdx() < 4 && !cps.some(c=>c.status!=="pending")) return "";
+  const fb = D.feedback||[];
+  return `<section class="sectie" id="progress"><div class="wrap">
+    <div class="kop"><div><span class="eyebrow">${L.gateResults}</span><h2>${L.progress}</h2></div></div>
+    <div class="scroll"><table class="tabel stack"><thead><tr><th>${L.checkpoints}</th><th>${L.behavior}</th><th>${L.ui}</th><th>${L.review}</th><th>${L.docs}</th><th class="r">${L.findings}</th><th class="r">${L.duration}</th><th class="r">${L.cpCost}</th></tr></thead><tbody>
+    ${cps.map(cp => { const f=allFindings(cp); const b=D.cost&&D.cost.by_checkpoint[cp.id]; return `<tr><td class="hoofd" data-l="#">${cp.n}. <a href="#${cp.id}">${esc(cp.title)}</a></td>${GATES.map(g=>`<td data-l="${L[g]}">${chip(cp,g)}</td>`).join("")}<td class="r" data-l="${L.findings}">${f.filter(x=>x.status==="fixed").length}/${f.length}</td><td class="r" data-l="${L.duration}">${dur(D.cost&&D.cost.time.checkpoint_seconds[cp.id])}</td><td class="r" data-l="${L.cpCost}">${b?usd(b.usd):"–"}</td></tr>`; }).join("")}
+    </tbody></table></div>
+    ${featureDocsBlock()}
+    ${(D.interruptions||[]).length ? `<h3 style="margin:28px 0 10px">${L.interruptions} (${D.interruptions.length})</h3><div class="cps">${D.interruptions.map(x=>`<div class="poging"><div class="poging-kop"><span class="chip interrupted">⏸ ${esc(x.error)}</span> <span class="grijs klein">${new Date(x.at).toLocaleString()} · ${esc(x.phase||"")}</span></div><p class="klein grijs">${L.interruptedAttempts}: ${esc((x.attempts||[]).join(", ")||"–")}${x.details?` · ${esc(x.details)}`:""}</p></div>`).join("")}</div>` : ""}
+    ${fb.length ? `<h3 style="margin:28px 0 10px">${L.humanFeedback} (${fb.length})</h3><div class="cps">${fb.map((x,i)=>`<div class="poging"><div class="poging-kop">#${i+1} <span class="grijs klein">${new Date(x.at).toLocaleString()}</span></div><p>${inline(x.text)}</p><p class="klein grijs">→ ${(x.checkpoints||[]).join(", ")||"–"}</p></div>`).join("")}</div>` : ""}
+  </div></section>`;
+}
+
+function bars(map){
+  const rows = Object.entries(map||{}).sort((a,b)=>b[1].usd-a[1].usd);
+  const max = Math.max(0.0001, ...rows.map(r=>r[1].usd));
+  return `<div class="bars">${rows.map(([k,b])=>`<div class="bar"><span class="lbl" title="${esc(k)}">${esc(k)}</span><span class="spoor"><span class="vul" style="width:${(b.usd/max*100).toFixed(1)}%;display:block"></span></span><span class="n">${usd(b.usd)} <span class="grijs klein">${tok(b.total_tokens)}</span></span></div>`).join("")}</div>`;
+}
+
+// a checkpoint report shows that checkpoint's cost; the viewer and the final report show the whole run
+function scopeId(){ return D.focus && D.focus!=="final" ? D.focus : null; }
+function scoped(){
+  const c = D.cost, id = scopeId(); if(!c || !id) return null;
+  const t = c.time || {};
+  return { b: (c.by_checkpoint||{})[id] || null, roles: (c.by_checkpoint_role||{})[id] || null, models: (c.by_checkpoint_model||{})[id] || null,
+    active: (t.checkpoint_seconds||{})[id], wall: (t.checkpoint_wall_seconds||{})[id], idle: (t.checkpoint_idle_seconds||{})[id] };
+}
+function modelTable(map){
+  return `<div class="scroll"><table class="tabel stack"><thead><tr><th>${L.model}</th><th class="r">${L.msgs}</th><th class="r">input</th><th class="r">cache write</th><th class="r">${L.cacheRead}</th><th class="r">${L.output}</th><th class="r">${L.cpCost}</th></tr></thead><tbody>
+      ${Object.entries(map||{}).map(([m,b])=>`<tr><td class="hoofd"><code>${esc(m)}</code></td><td class="r" data-l="${L.msgs}">${b.messages}</td><td class="r" data-l="input">${tok(b.input)}</td><td class="r" data-l="cache write">${tok(b.cache_write_5m+b.cache_write_1h)}</td><td class="r" data-l="${L.cacheRead}">${tok(b.cache_read)}</td><td class="r" data-l="${L.output}">${tok(b.output)}</td><td class="r" data-l="${L.cpCost}">${usd(b.usd)}</td></tr>`).join("")}
+    </tbody></table></div>`;
+}
+function runLine(c){
+  const T0 = c.totals, t = c.time || {};
+  return `<p class="klein grijs runregel">${esc(L.runSoFar)}: ${usd(T0.usd)} · ${tok(T0.total_tokens)} ${esc(L.tokens)} · ${dur(t.active_seconds)} ${esc(L.activeShort)}</p>`;
+}
+function scopedCostSection(c, sc){
+  const b = sc.b || {usd:0,total_tokens:0,output:0,cache_read:0,messages:0};
+  return `<section class="sectie zwart" id="costs"><div class="wrap">
+    <div class="kop"><div><span class="eyebrow">${esc(scopeId())} · ${L.tokens} · ${L.cost}</span><h2>${L.cpCosts}</h2></div><p class="grijs">${L.costNote}</p></div>
+    <div class="kpis">
+      <div class="kpi"><span class="w">${usd(b.usd)}</span><span class="l">${L.cost}</span></div>
+      <div class="kpi"><span class="w">${tok(b.total_tokens)}</span><span class="l">${L.tokens} (${tok(b.output)} ${L.output})</span></div>
+      <div class="kpi"><span class="w">${tok(b.cache_read)}</span><span class="l">${L.cacheRead}</span></div>
+      <div class="kpi"><span class="w">${dur(sc.active)}</span><span class="l">${L.active}</span></div>
+      <div class="kpi"><span class="w">${dur(sc.wall)}</span><span class="l">${L.wall}</span></div>
+      <div class="kpi"><span class="w">${dur(sc.idle)}</span><span class="l">${L.idle}</span></div>
+      <div class="kpi"><span class="w">${b.messages||0}</span><span class="l">${L.msgs}</span></div>
+    </div>
+    ${sc.roles ? `<h3 style="margin:32px 0 14px">${L.byRole}</h3>${bars(sc.roles)}
+      <h3 style="margin:32px 0 12px">${L.byModel}</h3>${modelTable(sc.models)}`
+      : `<p class="klein grijs" style="margin-top:18px">${L.noSplit}</p>`}
+    ${runLine(c)}
+  </div></section>`;
+}
+
+function costSection(){
+  const c = D.cost;
+  const sc = c && scopeId() ? scoped() : null;
+  if(sc) return scopedCostSection(c, sc);
+  if(!c) return `<section class="sectie zwart" id="costs"><div class="wrap"><span class="eyebrow">${L.costs}</span><h2 style="margin:6px 0 16px">${L.costs}</h2><p class="grijs">${inline(L.noCost)}</p></div></section>`;
+  const t = c.time, T0 = c.totals;
+  return `<section class="sectie zwart" id="costs"><div class="wrap">
+    <div class="kop"><div><span class="eyebrow">${L.tokens} · ${L.cost}</span><h2>${L.costs}</h2></div><p class="grijs">${L.costNote}</p></div>
+    <div class="kpis">
+      <div class="kpi"><span class="w">${usd(T0.usd)}</span><span class="l">${L.cost}</span></div>
+      <div class="kpi"><span class="w">${tok(T0.total_tokens)}</span><span class="l">${L.tokens} (${tok(T0.output)} ${L.output})</span></div>
+      <div class="kpi"><span class="w">${dur(t.active_seconds)}</span><span class="l">${L.active}</span></div>
+      <div class="kpi"><span class="w">${dur(t.wall_seconds)}</span><span class="l">${L.wall}</span></div>
+      <div class="kpi"><span class="w">${dur(t.waiting_seconds)}</span><span class="l">${L.waiting}</span></div>
+      <div class="kpi"><span class="w">${dur(t.idle_seconds||0)}</span><span class="l">${L.idle}${t.interruptions?` · ${t.interruptions}× ${esc((t.interruption_types||[]).join(", "))}`:""}</span></div>
+      <div class="kpi"><span class="w">${t.subagent_runs}</span><span class="l">${L.subagents} · ${dur(t.subagent_seconds)}</span></div>
+    </div>
+    <div class="twee" style="margin-top:32px">
+      <div><h3 style="margin-bottom:14px">${L.byRole}</h3>${bars(c.by_role)}</div>
+      <div><h3 style="margin-bottom:14px">${L.byCp}</h3>${bars(c.by_checkpoint)}</div>
+    </div>
+    <h3 style="margin:32px 0 12px">${L.byModel}</h3>
+    ${modelTable(c.by_model)}
+    ${c.unpriced_models && c.unpriced_models.length ? `<p class="klein grijs" style="margin-top:10px">Unpriced: ${c.unpriced_models.map(esc).join(", ")}</p>`:""}
+  </div></section>`;
+}
+
+function learnSection(){
+  const txt = (D.learnings||"").split("\n").filter(l => l.startsWith("- ") || l.startsWith("## ")).join("\n").trim();
+  return `<section class="sectie" id="learnings"><div class="wrap">
+    <div class="kop"><div><span class="eyebrow">learnings.md</span><h2>${L.learnings}</h2></div></div>
+    ${txt && txt.includes("- ") ? `<div class="md">${inline(txt)}</div>` : `<div class="leeg">${L.noLearn}</div>`}
+  </div></section>`;
+}
+
+function footer(){
+  return `<footer class="footer"><div class="wrap"><span>buildflow · checkpoints &amp; gates, after Shopify's Helix</span><span>${esc(D.slug)} · ${esc(D.project && D.project.branch || "")} ${D.project && D.project.base_commit ? "· base "+esc(D.project.base_commit.slice(0,8)) : ""}</span></div></footer>`;
+}
+
+function render(){
+  L = T[D.lang] || T.en;
+  document.documentElement.lang = D.lang || "en";
+  let body, parts;
+  const early = phaseIdx() < 4;
+  if(D.focus && D.focus!=="final"){
+    const cp = (D.checkpoints||[]).find(c=>c.id===D.focus);
+    body = hero() + `<section class="sectie vlak"><div class="wrap"><div class="cps">${cp?cpCard(cp,true):""}</div><p style="margin-top:18px"><a class="knop rand klein" href="viewer-plan.html">${L.back}</a></p></div></section>` + costSection();
+  } else {
+    const S = {brief:[briefSection,L.brief], design:[designSection,L.design], plan:[planSection,L.plan], progress:[progressSection,L.progress],
+               costs:[costSection,L.costs], context:[contextSection,L.context], learnings:[learnSection,L.learnings]};
+    const order = D.focus==="final" ? ["progress","costs","brief","design","plan","context","learnings"]
+                : early ? (() => { const cur = ({1:"brief",2:"design",3:"plan"})[phaseIdx()];
+                    const base = ["brief","design","plan","context","costs","learnings"];
+                    return cur ? [cur, ...base.filter(k => k!==cur)] : base; })()
+                : ["plan","progress","costs","brief","design","context","learnings"];
+    parts = order.map(k => [k, S[k][0](), S[k][1]]).filter(x => x[1]);
+    window.__nav = parts.map(([k,,lbl]) => [k, lbl]);
+    body = hero() + parts.map(x=>x[1]).join("");
+  }
+  const openIds = [...document.querySelectorAll("details.cp[open]")].map(d=>d.id);
+  $("#app").innerHTML = header() + body + footer();
+  openIds.forEach(id => { const d=document.getElementById(id); if(d) d.open=true; });
+  // when the run moves on to another checkpoint, that card opens even though preserve() restores the rest
+  const act = activeId(); activeOverride = act && act !== lastActive ? act : null; lastActive = act;
+  bindBoxes(document);
+  document.querySelectorAll(".copy-fb").forEach(b => b.addEventListener("click", copyFeedback));
+  renderLive();
+  const frame = $("#proto");
+  if(frame) document.querySelectorAll(".statenrij .chip[data-state]").forEach(c => c.addEventListener("click", e => {
+    e.preventDefault(); frame.src = c.href;
+    document.querySelectorAll(".statenrij .chip").forEach(x => x.classList.toggle("aan", x===c));
+  }));
+}
+
+function copyFeedback(){
+  const parts = [];
+  document.querySelectorAll("textarea[data-cp]").forEach(t => {
+    const v = t.value.trim(); if(!v || t.dataset.cp==="msg") return;
+    if(t.dataset.cp==="general" || t.dataset.cp==="brief" || t.dataset.cp==="design") parts.unshift(`${t.dataset.cp==="general" ? "General" : t.dataset.cp}: ${v}`);
+    else { const cp = D.checkpoints.find(c=>c.id===t.dataset.cp); parts.push(`${t.dataset.cp} (${cp?cp.title:""}): ${v}`); }
+  });
+  const stage = D.phase==="awaiting_brief_approval" ? "brief" : D.phase==="awaiting_design_approval" ? "design" : "plan";
+  const txt = parts.length ? `buildflow ${stage} feedback for ${D.slug}:\n\n` + parts.map(p=>"- "+p).join("\n") : "";
+  if(!txt) return toast(L.noFeedback);
+  (navigator.clipboard ? navigator.clipboard.writeText(txt) : Promise.reject()).then(()=>toast(L.copied)).catch(()=>{ window.prompt("Copy:", txt); });
+}
+
+let toastTimer;
+function toast(m, err){
+  const e = $("#toast"); e.textContent = m; e.classList.toggle("fout", !!err); e.classList.add("aan");
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => { e.classList.remove("aan"); setTimeout(() => { if(!e.classList.contains("aan")) e.textContent = ""; }, 300); }, err ? 6000 : 2600);
+}
+
+function bindBoxes(scope){
+  scope.querySelectorAll("textarea[data-key]").forEach(t => t.addEventListener("input", () => { lastInput = Date.now(); store.set(t.dataset.key, t.value); }));
+  scope.querySelectorAll(".send-fb").forEach(b => b.addEventListener("click", () => sendBox(b)));
+}
+
+// ---- overview of all runs in the project (.buildflow/index.html), same template, own data
+function phasePil(ph){ return `<span class="pil ${ph==="done"?"zwart":String(ph).startsWith("awaiting")?"geel":"rand"}">${esc(L.phase[ph]||ph)}</span>`; }
+function day(s){ return s ? new Date(s).toLocaleDateString() : "–"; }
+function runCard(r){
+  const reps = r.reports || {}, cps = r.checkpoints || [];
+  const cpReps = cps.filter(c => reps[c.id]);
+  return `<article class="run-kaart${r.active?" actief":""}" id="run-${esc(r.slug)}">
+    <div class="run-links">${phasePil(r.phase)}${r.active ? `<span class="pil geel">${esc(L.activeRun)}</span>` : ""}</div>
+    <h3><a href="${esc(r.viewer)}">${esc(r.title)}</a></h3>
+    ${r.goal ? `<p class="klein grijs">${inline(r.goal)}</p>` : ""}
+    ${cps.length ? `<div class="rail" aria-hidden="true">${cps.map(c=>`<i class="${esc(c.status)}" title="${esc(c.id)} ${esc(c.title)}"></i>`).join("")}</div>` : ""}
+    <dl class="run-meta">
+      <dt>${esc(L.checkpoints)}</dt><dd>${r.checkpoints_passed}/${r.checkpoints_total}</dd>
+      <dt>${esc(L.cpCost)}</dt><dd>${usd(r.usd)}${r.tokens ? ` · ${tok(r.tokens)} ${esc(L.tokens)}` : ""}</dd>
+      <dt>${esc(L.active)}</dt><dd>${dur(r.active_seconds)}</dd>
+      <dt>${esc(L.started)}</dt><dd>${day(r.created_at)}</dd>
+      <dt>${esc(L.finished)}</dt><dd>${day(r.finished_at)}</dd>
+      <dt>${esc(L.branch)}</dt><dd><code>${esc(r.branch||"–")}</code></dd>
+    </dl>
+    <div class="run-links"><a class="knop klein zwart" href="${esc(r.viewer)}">${esc(L.openViewer)}</a>
+      ${reps.final ? `<a class="knop klein rand" href="${esc(reps.final)}">${esc(L.finalReport)}</a>` : ""}</div>
+    ${cpReps.length ? `<div class="run-links"><span class="klein grijs">${esc(L.cpReport)}:</span>${cpReps.map(c=>`<a class="chip ${esc(c.status)}" href="${esc(reps[c.id])}" title="${esc(c.title)}">${esc(c.id)}</a>`).join("")}</div>` : ""}
+  </article>`;
+}
+function renderOverview(){
+  L = T[D.lang] || T.en;
+  document.documentElement.lang = D.lang || "en";
+  const runs = D.runs || [], done = runs.filter(r => r.phase==="done").length;
+  const sum = k => runs.reduce((a,r) => a + (+r[k]||0), 0);
+  $("#app").innerHTML = `<div class="topbalk"><div class="wrap"><span>buildflow · <b>${esc(D.project)}</b></span><span class="upd">${esc(L.updated)} ${new Date(D.generated_at).toLocaleString()}</span></div></div>
+  <header class="header"><div class="wrap"><a class="woordmerk" href="#top"><b>build</b><span>flow</span></a><span class="pil rand">${esc(L.overview)}</span>
+    <nav class="nav"><a href="#runs">${esc(L.ovRuns)}</a><a href="#features">${esc(L.ovFeatures)}</a></nav></div></header>
+  <section class="hero" id="top"><div class="wrap">
+    <span class="eyebrow">${esc(L.overview)} · ${esc(D.project)}</span><h1><span class="mark">${esc(L.ovTitle)}</span></h1><p class="lead">${esc(L.ovIntro)}</p>
+    <div class="kpis">
+      <div class="kpi"><span class="w">${runs.length}</span><span class="l">${esc(L.ovTotal)}</span></div>
+      <div class="kpi"><span class="w">${runs.length-done}</span><span class="l">${esc(L.ovOpen)}</span></div>
+      <div class="kpi"><span class="w">${done}</span><span class="l">${esc(L.ovDone)}</span></div>
+      <div class="kpi"><span class="w">${usd(sum("usd"))}</span><span class="l">${esc(L.ovCost)}</span></div>
+      <div class="kpi"><span class="w">${dur(sum("active_seconds"))}</span><span class="l">${esc(L.ovActive)}</span></div>
+    </div>
+  </div></section>
+  <section class="sectie vlak" id="runs"><div class="wrap"><div class="kop"><div><span class="eyebrow">.buildflow/</span><h2>${esc(L.ovRuns)}</h2></div></div>
+    ${runs.length ? `<div class="runs">${runs.map(runCard).join("")}</div>` : `<div class="leeg">${esc(L.ovNoRuns)}</div>`}</div></section>
+  <section class="sectie" id="features"><div class="wrap"><div class="kop"><div><span class="eyebrow">.buildflow/context.md</span><h2>${esc(L.ovFeatures)}</h2></div><p class="grijs">${esc(L.ovFeaturesIntro)}</p></div>
+    ${D.features_text ? `<div class="prose">${md(D.features_text)}</div>` : `<div class="leeg">${esc(L.ovNoFeatures)}</div>`}</div></section>
+  <footer class="footer"><div class="wrap"><span>buildflow · checkpoints &amp; gates, after Shopify's Helix</span><span>${esc(D.project)}</span></div></footer>`;
+  // live refresh: bf rewrites overview.json on every change of any run
+  if(location.protocol.startsWith("http") && !window.__ovPoll){
+    window.__ovPoll = setInterval(() => fetch("overview.json?" + Date.now(), {cache:"no-store"}).then(r => r.json()).then(n => {
+      if(n.generated_at !== D.generated_at){ D = n; preserve(renderOverview); }
+    }).catch(() => {}), 2500);
+  }
+}
+
+// ---- live viewer (bf serve): everything below only runs when the page was served with a token
+function api(path, body){
+  const h = {"X-BF-Token": TOKEN};
+  if(body) h["Content-Type"] = "application/json";
+  return fetch(path, {method: body ? "POST" : "GET", headers: h, cache: "no-store", body: body ? JSON.stringify(body) : undefined})
+    .then(r => r.json().catch(() => ({})).then(j => ({status: r.status, j})));
+}
+function errText(res){
+  if(!res) return L.errOffline;
+  const c = res.j && res.j.code;
+  if(res.status === 403) return L.errToken;
+  if(c === "duplicate") return L.errDup;
+  if(c === "wrong_phase") return L.errPhase;
+  if(c === "text_required") return L.errText;
+  if(c === "too_large") return L.errSize;
+  return (res.j && res.j.error) || ("HTTP " + res.status);
+}
+function post(body, btn){
+  if(btn){ btn.disabled = true; btn.setAttribute("aria-busy","true"); }
+  const done = () => { if(btn && btn.isConnected){ btn.disabled = false; btn.removeAttribute("aria-busy"); } };
+  return api("/api/action", body).then(res => {
+    done(); setLive(true);
+    if(res.status === 200){ toast(L.sent); loadInbox(); return true; }
+    toast(errText(res), true);
+    if(res.j && res.j.code === "wrong_phase"){ VER = {}; }  // force a refresh on the next poll
+    return false;
+  }, () => { done(); setLive(false); toast(L.errOffline, true); return false; });
+}
+function currentCp(){ const c = (D.checkpoints||[]).find(x => x.status==="in_progress" || x.status==="blocked"); return c ? c.id : null; }
+function sendBox(btn){
+  const t = document.getElementById(btn.dataset.for); if(!t) return;
+  const text = t.value.trim();
+  if(!text){ toast(L.errText, true); t.focus(); return; }
+  const cp = t.dataset.cp, body = {type:"feedback", text};
+  if(cp==="brief" || cp==="design") body.stage = cp;
+  else if(cp==="general") body.stage = "plan";
+  else if(/^cp\d+$/.test(cp)){ body.stage = D.phase==="awaiting_plan_approval" ? "plan" : "checkpoint"; body.target = cp; }
+  else if(cp==="msg"){
+    if(D.phase==="awaiting_human_review") body.stage = "review";
+    else { body.type = "message"; const c = currentCp(); if(c && (D.phase==="building"||D.phase==="paused")) body.target = c; }
+  }
+  post(body, btn).then(ok => { if(ok){ t.value = ""; store.set(t.dataset.key, ""); } });
+}
+
+function actionsHtml(){
+  const stage = STOP_STAGE[D.phase]; if(!stage) return "";
+  const typ = stage==="review" ? "accept" : "approve";
+  if(INBOX.some(x => x.type===typ && x.stage===stage && x.status!=="handled"))
+    return `<div class="acties"><p class="klaar"><span class="pil zwart">✓</span> ${esc(L.approveSent[typ])}</p></div>`;
+  if(confirming)
+    return `<div class="acties" role="group" aria-labelledby="bf-vraag"><p class="vraag" id="bf-vraag">${esc(L.confirm[stage])}</p>
+      <p class="knoppen"><button type="button" class="knop zwart" id="bf-ja">${esc(L.yes[typ])}</button><button type="button" class="knop rand klein" id="bf-nee">${esc(L.cancel)}</button></p></div>`;
+  return `<div class="acties"><p class="knoppen"><button type="button" class="knop" id="bf-keur">✓ ${esc(L.approve[stage])}</button></p></div>`;
+}
+function inboxHtml(){
+  const phaseReview = D.phase==="awaiting_human_review", key = `bf:${D.slug}:fb:msg`;
+  const items = INBOX.slice().reverse().slice(0, 8);
+  const where = x => [x.stage, x.target].filter(Boolean).map(esc).join(" · ");
+  return `<section class="inbox" aria-labelledby="bf-inbox-h">
+    <div><h3 id="bf-inbox-h">${esc(L.inbox)}</h3><p class="klein grijs">${esc(L.inboxIntro)}</p>
+      <div class="feedback-box" style="margin-top:12px"><label class="klein" for="fb-msg"><b>${esc(phaseReview ? L.msgReview : L.msgL)}</b></label>
+        <textarea id="fb-msg" data-key="${esc(key)}" data-cp="msg">${esc(store.get(key)||"")}</textarea>${fbButtons("fb-msg", false)}</div></div>
+    ${items.length ? `<ol class="inbox-lijst" aria-label="${esc(L.inbox)}">${items.map(x => `<li>
+        <div class="regel"><span class="pil st-${esc(x.status)}">${esc(L.stL[x.status]||x.status)}</span><b>${esc(L.typeL[x.type]||x.type)}</b><span class="grijs klein">${where(x)} · ${new Date(x.at).toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"})}</span></div>
+        ${x.text ? `<div class="tekst">${esc(x.text.length > 240 ? x.text.slice(0,240)+"…" : x.text)}</div>` : ""}
+        ${x.note ? `<div class="noot klein">→ ${esc(x.note)}</div>` : ""}</li>`).join("")}</ol>`
+      : `<p class="klein grijs">${esc(L.inboxEmpty)}</p>`}
+  </section>`;
+}
+function renderLive(){
+  if(!LIVE || D.focus) return;
+  const a = $("#bf-acties-slot"), b = $("#bf-inbox-slot");
+  if(a){
+    a.innerHTML = actionsHtml();
+    const k = $("#bf-keur"), ja = $("#bf-ja"), nee = $("#bf-nee");
+    if(k) k.addEventListener("click", () => { confirming = true; renderLive(); const j = $("#bf-ja"); if(j) j.focus(); });
+    if(nee) nee.addEventListener("click", () => { confirming = false; renderLive(); const k2 = $("#bf-keur"); if(k2) k2.focus(); });
+    if(ja) ja.addEventListener("click", () => {
+      const stage = STOP_STAGE[D.phase];
+      post({type: stage==="review" ? "accept" : "approve", stage}, ja).then(() => { confirming = false; renderLive(); });
+    });
+  }
+  if(b){ b.innerHTML = inboxHtml(); bindBoxes(b); }
+}
+// re-render without losing scroll position, open sections, focus or the caret in a feedback box
+function preserve(fn){
+  const a = document.activeElement, id = a && a.id, s = a && a.selectionStart, e = a && a.selectionEnd, y = window.scrollY;
+  const open = [...document.querySelectorAll("details[id]")].map(d => [d.id, d.open]);
+  fn();
+  open.forEach(([i,o]) => { const d = document.getElementById(i); if(d && i !== activeOverride) d.open = o; });
+  if(id){ const n = document.getElementById(id); if(n && n !== document.activeElement){ n.focus({preventScroll:true}); if(s != null && n.setSelectionRange) try{ n.setSelectionRange(s, e); }catch(_){} } }
+  window.scrollTo(0, y);
+}
+function loadInbox(){
+  return api("/api/inbox").then(res => {
+    if(res.status===200 && res.j.items){ INBOX = res.j.items; preserve(renderLive); }
+    else if(res.status===403 && !staleWarned){ staleWarned = true; toast(L.errToken, true); }
+  }).catch(() => {});
+}
+function loadData(){
+  return fetch("data.json?" + Date.now(), {cache:"no-store"}).then(r => r.json()).then(n => {
+    n.cost = n.cost || D.cost; D = n; lastData = new Date(); confirming = false; preserve(render);
+  });
+}
+function poll(){
+  // typing in a box: wait a moment so a refresh never lands in the middle of a word
+  if(Date.now() - lastInput < 1500) return setTimeout(poll, 800);
+  fetch("/api/version", {cache:"no-store"}).then(r => r.json()).then(v => {
+    setLive(true);
+    const jobs = [];
+    const old = VER; VER = v;
+    if(v.inbox !== old.inbox) jobs.push(loadInbox());
+    if(v.state !== old.state) jobs.push(loadData());
+    return Promise.all(jobs);
+  }).catch(() => setLive(false)).finally(() => setTimeout(poll, 2000));
+}
+
+if(!D){ document.getElementById("app").innerHTML = "<p style='padding:40px'>No buildflow data embedded.</p>"; return; }
+if(D.overview){ renderOverview(); return; }
+render();
+// on first load, bring the active checkpoint into view, unless the page opened on an anchor or the user already moved
+["wheel","touchstart","keydown","mousedown"].forEach(ev => addEventListener(ev, () => { userMoved = true; }, {once:true, passive:true}));
+let autoScrolled = false;
+function scrollToActive(again){
+  if(D.focus || location.hash || userMoved || (again ? !autoScrolled : window.scrollY > 10)) return;
+  const id = activeId(), el = id && document.getElementById(id);
+  if(el){ el.scrollIntoView({block:"start"}); autoScrolled = true; }
+}
+requestAnimationFrame(() => scrollToActive(false));
+if(location.protocol.startsWith("http") && !D.focus){
+  if(TOKEN){
+    // served by bf serve: interactive, and cheap refresh (poll a fingerprint, fetch data only when it changed)
+    fetch("/api/ping", {cache:"no-store"}).then(r => r.json()).then(p => {
+      if(!p.ok || p.slug !== D.slug) throw 0;
+      LIVE = true; liveOk = true; preserve(render);
+      scrollToActive(true);  // the live panels pushed the page down; correct the first-load scroll once
+      autoScrolled = false; poll();
+    }).catch(() => {});
+  } else {
+    // any other web server: plain refresh of data.json
+    setInterval(() => fetch("data.json?"+Date.now()).then(r=>r.json()).then(n => {
+      if(n.updated_at !== D.updated_at && !document.activeElement.matches("textarea")){ n.cost = n.cost || D.cost; D = n; render(); }
+    }).catch(()=>{}), 4000);
+  }
+}
+})();
+</script>
+</body>
+</html>
