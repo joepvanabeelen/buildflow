@@ -6,7 +6,7 @@ from html.parser import HTMLParser
 
 from tests.check_site import INDEX, ROOT, Pagina, controleer_links, design_tokens, lees
 
-SITE_URL = "https://joepvanabeelen.github.io/buildflow-website/"
+SITE_URL = "https://joepvanabeelen.github.io/buildflow/"
 OG_IMAGE = SITE_URL + "assets/previews/og.png"
 META_NAMEN = ["og:title", "og:description", "og:type", "og:url", "og:locale",
               "og:image", "twitter:card"]

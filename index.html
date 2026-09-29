@@ -6,13 +6,13 @@
 <meta name="color-scheme" content="light">
 <title>buildflow · grote features bouwen in Claude Code</title>
 <meta name="description" content="buildflow is een skill voor Claude Code die een grote feature opknipt in kleine checkpoints, elk met vaste gates. Uitleg, handleiding, installatie en download.">
-<link rel="canonical" href="https://joepvanabeelen.github.io/buildflow-website/">
+<link rel="canonical" href="https://joepvanabeelen.github.io/buildflow/">
 <meta property="og:type" content="website">
 <meta property="og:locale" content="nl_NL">
-<meta property="og:url" content="https://joepvanabeelen.github.io/buildflow-website/">
+<meta property="og:url" content="https://joepvanabeelen.github.io/buildflow/">
 <meta property="og:title" content="buildflow · grote features bouwen in Claude Code">
 <meta property="og:description" content="Een skill voor Claude Code die een grote feature opknipt in kleine checkpoints. Elke stap gaat langs tests en een kritische review, en jij beslist mee op een paar vaste momenten.">
-<meta property="og:image" content="https://joepvanabeelen.github.io/buildflow-website/assets/previews/og.png">
+<meta property="og:image" content="https://joepvanabeelen.github.io/buildflow/assets/previews/og.png">
 <meta property="og:image:type" content="image/png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
@@ -319,7 +319,7 @@
       <ol class="stappen">
         <li><div><h3>Download de zip</h3>
           <p>Met de knop bij <a href="#download">Download</a>, of in je terminal:</p>
-          <div class="code"><pre><code>curl -L -o buildflow.zip https://github.com/joepvanabeelen/buildflow-website/releases/latest/download/buildflow.zip</code></pre></div>
+          <div class="code"><pre><code>curl -L -o buildflow.zip https://github.com/joepvanabeelen/buildflow/releases/latest/download/buildflow.zip</code></pre></div>
         </div></li>
         <li><div><h3>Pak hem uit in je skills-map</h3>
           <div class="code"><pre><code>mkdir -p ~/.claude/skills
@@ -352,7 +352,7 @@ unzip -o buildflow.zip -d ~/.claude/skills</code></pre></div>
     <div class="antwoord">
       <p>Download de zip in de map van je project, net als bij stap 1, en pak hem uit in <code>.claude/skills</code>. Commit die map mee, dan werkt iedereen in het team met dezelfde versie. De zip zelf kun je daarna weggooien.</p>
       <div class="code"><pre><code>cd pad/naar/je-project
-curl -L -o buildflow.zip https://github.com/joepvanabeelen/buildflow-website/releases/latest/download/buildflow.zip
+curl -L -o buildflow.zip https://github.com/joepvanabeelen/buildflow/releases/latest/download/buildflow.zip
 mkdir -p .claude/skills
 unzip -o buildflow.zip -d .claude/skills
 rm buildflow.zip
@@ -373,8 +373,8 @@ python3 .claude/skills/buildflow/scripts/bf.py doctor</code></pre></div>
       <div class="kpi"><span class="w" data-release="grootte">volgt</span><span class="l">grootte van de zip</span></div>
     </div>
     <p class="knoppen">
-      <a class="knop" href="https://github.com/joepvanabeelen/buildflow-website/releases/latest/download/buildflow.zip">Download buildflow.zip</a>
-      <a class="knop rand-licht" href="https://github.com/joepvanabeelen/buildflow-website/releases">Alle versies</a>
+      <a class="knop" href="https://github.com/joepvanabeelen/buildflow/releases/latest/download/buildflow.zip">Download buildflow.zip</a>
+      <a class="knop rand-licht" href="https://github.com/joepvanabeelen/buildflow/releases">Alle versies</a>
     </p>
     <p class="grijs klein voetnoot">MIT-licentie. De zip bevat alleen de skill en de LICENSE, geen cachebestanden of andere mappen.</p>
   </div>
@@ -434,7 +434,7 @@ unzip -o buildflow.zip -d .claude/skills</code></pre></div>
 
 <footer class="footer"><div class="wrap">
   <span>buildflow · checkpoints en gates voor Claude Code, naar Shopify's Helix</span>
-  <span><a href="https://github.com/joepvanabeelen/buildflow-website">GitHub</a> · <a href="https://github.com/joepvanabeelen/buildflow-website/blob/main/LICENSE">MIT-licentie</a> · <span data-release="versie">v1.0.0</span></span>
+  <span><a href="https://github.com/joepvanabeelen/buildflow">GitHub</a> · <a href="https://github.com/joepvanabeelen/buildflow/blob/main/LICENSE">MIT-licentie</a> · <span data-release="versie">v1.0.0</span></span>
 </div></footer>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 <script src="assets/site.js" defer></script>

@@ -26,7 +26,7 @@ import zlib
 from tests import check_privacy, check_site
 from tests.check_site import INDEX, ROOT, Pagina, lees
 
-SITE_URL = "https://joepvanabeelen.github.io/buildflow-website/"
+SITE_URL = "https://joepvanabeelen.github.io/buildflow/"
 PREVIEWS = os.path.join(ROOT, "assets", "previews")
 SCREENSHOTS = ["viewer-brief", "viewer-design", "viewer-plan", "cp01", "final"]
 # De screenshots zijn op 1x gemaakt (Playwright, viewport 1200x800). Op 2x zouden ze

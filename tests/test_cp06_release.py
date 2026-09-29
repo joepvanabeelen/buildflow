@@ -32,7 +32,7 @@ SCRIPT = cp05.SCRIPT
 VERSIE = "v1.0.0"
 DATUM = "2026-09-29"
 DATUM_NL = "29 sep. 2026"
-DOWNLOAD = "https://github.com/joepvanabeelen/buildflow-website/releases/latest/download/buildflow.zip"
+DOWNLOAD = "https://github.com/joepvanabeelen/buildflow/releases/latest/download/buildflow.zip"
 
 # Gedeeld stukje voor beide stubs: loggen, en een aanroep laten mislukken (NEP_FAAL) of
 # onderbreken alsof de gebruiker Ctrl-C drukt (NEP_ONDERBREEK). Beide zijn een stuk tekst
@@ -76,7 +76,7 @@ elif cmd == "status":
 elif cmd == "remote" and rest[:1] == ["get-url"] and rest[-1:] == ["origin"]:
     # fetch-URL (NEP_ORIGIN_URL) en push-URL (NEP_PUSH_URL, standaard gelijk aan de fetch-URL)
     fetch = os.environ.get("NEP_ORIGIN_URL",
-                           "git@github.com:joepvanabeelen/buildflow-website.git")
+                           "git@github.com:joepvanabeelen/buildflow.git")
     print(os.environ.get("NEP_PUSH_URL", fetch) if "--push" in rest else fetch)
 elif cmd == "rev-parse":
     if rest == ["HEAD"]:
@@ -397,8 +397,8 @@ class PublicerenVoorwaarden(Cp06Basis):
         self.weigert_voor_vraag({"NEP_ORIGIN_URL": "https://gitlab.com/x/y.git"}, "GitHub")
 
     def test_gh_gebruikt_de_repo_van_origin(self):
-        for url, repo in (("git@github.com:joepvanabeelen/buildflow-website.git",
-                           "joepvanabeelen/buildflow-website"),
+        for url, repo in (("git@github.com:joepvanabeelen/buildflow.git",
+                           "joepvanabeelen/buildflow"),
                           ("https://github.com/iemand/andere-repo.git", "iemand/andere-repo"),
                           ("https://github.com/iemand/zonder.git.suffix", "iemand/zonder.git.suffix")):
             with self.subTest(url=url):
@@ -451,7 +451,7 @@ class PublicerenMislukt(Cp06Basis):
         # de overige stappen staan er als volledige commando's
         self.assertIn(f"git push origin {VERSIE}", fouttekst)
         self.assertRegex(fouttekst, rf"gh release create {VERSIE} dist/buildflow.zip --repo "
-                                    r"joepvanabeelen/buildflow-website .*--title")
+                                    r"joepvanabeelen/buildflow .*--title")
         # gelukt: commit en tag
         self.assertIn(f"git tag -a {VERSIE}", fouttekst)
         # terugdraaien: tag weg en commit weg (die is nog niet gepusht)

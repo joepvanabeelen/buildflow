@@ -42,8 +42,8 @@ from tests import test_cp07_installatie as cp07
 from tests.check_site import INDEX, ROOT, Pagina, heeft_schema, lees
 
 VERSIE = cp06.VERSIE
-REPO_NAAM = "joepvanabeelen/buildflow-website"
-LIVE_URL = "https://joepvanabeelen.github.io/buildflow-website/"
+REPO_NAAM = "joepvanabeelen/buildflow"
+LIVE_URL = "https://joepvanabeelen.github.io/buildflow/"
 DOWNLOAD = cp06.DOWNLOAD
 DIST_ZIP = os.path.join(ROOT, "dist", "buildflow.zip")
 LIVE_REDEN = "BUILDFLOW_LIVE niet gezet; zet BUILDFLOW_LIVE=1 om tegen de live site te testen"
