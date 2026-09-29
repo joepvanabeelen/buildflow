@@ -14,7 +14,7 @@ Wat het script doet:
   onder ~, ook in een file://-url. Dat geldt ook voor de gecodeerde vormen: \\/ uit JSON, %2F
   uit een url en &#47;, &#x2F; of &sol; uit html. De mapnaam die Claude Code van een pad maakt
   (-Users-<naam>-...) wordt -demo-..., en de tijdelijke map claude-<uid> wordt claude;
-- links naar een Claude Code-sessie (https://claude.ai/code/session_...) en de waarde van een
+- links naar een Claude Code-sessie (claude.ai met het pad code/session_...) en de waarde van een
   Claude-Session:-regel worden [sessielink];
 - sessie-id's worden sessie-1, sessie-2, ... (dezelfde id krijgt overal dezelfde vervanging);
 - e-mailadressen worden [e-mailadres]; een retina-bestandsnaam (naam, @2x, dan .png) is geen e-mailadres;

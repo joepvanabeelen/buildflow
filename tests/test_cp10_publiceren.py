@@ -13,9 +13,15 @@ Git wordt hier alleen lezend aangeroepen in de repo (log, rev-list, cat-file, fo
 config --get). De tests die laten zien dat de scan echt aanslaat, maken een eigen
 wegwerprepo in een tijdelijke map, met expliciete cwd en zonder de globale git-config.
 
-Claude-Session-trailers in commitberichten zijn geen fout: Joep beslist of die mogen blijven.
-De test die ze telt slaagt altijd en schrijft wat hij vond naar stderr, net als de
-auteursregels, zodat ze bij het draaien zichtbaar zijn.
+Elke link naar claude.ai met het pad /code/ en elke regel die met Claude-Session: begint is een fout, in elke
+versie van elk bestand, in commit- en tagberichten en in de werkkopie, ongeacht hoe lang het
+id erachter is. De enige uitzondering is het verzonnen id NEP_SESSIE. Testdata met zo'n link
+of regel wordt tijdens het draaien opgebouwd ("Claude-" + "Session:"), zodat de scan er niet
+op aanslaat. De rapporttest schrijft de auteursregels en gevonden trailers daarnaast naar
+stderr, zodat ze bij het draaien zichtbaar zijn.
+
+De scan op de naam van de private skill-repo draait alleen als BUILDFLOW_SKILL_REPO gezet is
+en wordt anders zichtbaar overgeslagen; de scan op sessie-id's draait altijd.
 
 Groep 2 zijn live-tests tegen GitHub. Ze draaien alleen met BUILDFLOW_LIVE=1 en worden
 anders overgeslagen met de reden 'BUILDFLOW_LIVE niet gezet', zonder één netwerkverzoek
@@ -164,23 +170,26 @@ def zoek_echte_gegevens(blobs, verboden):
                    if any(v in inhoud.lower() for v in verboden)})
 
 
-# Sessie-ids en de private skill-repo. Eén benoemde uitzondering: het verzonnen id dat de
-# tests als voorbeeld gebruiken, en voorvoegsels daarvan (voor afgekapte varianten).
-# Korte ids (minder dan 20 tekens na session_, zoals session_ABCdef123) zijn duidelijk nep.
+# Sessie-ids en de private skill-repo. Een kaal id (session_ plus minstens 20 tekens) is fout,
+# behalve het verzonnen id dat de tests als voorbeeld gebruiken en voorvoegsels daarvan.
+# Een link naar claude.ai met het pad /code/ of een regel die met Claude-Session: begint is altijd fout, hoe
+# kort het id ook is; daar is alleen het volledige verzonnen id toegestaan.
 NEP_SESSIE = "session_01AbCdEfGhIjKlMnOpQrStUv"
 SESSIE_ID = re.compile(rb"session_[A-Za-z0-9]{20,}")
+SESSIE_LINK = re.compile(rb"claude\.ai/code/([^\s\"'<>()\\]*)", re.I)
+SESSIE_REGEL = re.compile(rb"^claude-session:[ \t]*([^\r\n]*)", re.I | re.M)
+NEP_LINK = "https://claude.ai" + "/code/" + NEP_SESSIE
 SESSIE_OMGEVING = ("CLAUDE_SESSION_ID", "CLAUDE_CODE_SESSION_ID",
                    "CLAUDE_CODE_BRIDGE_SESSION_ID")
 SKILL_REPO_OMGEVING = "BUILDFLOW_SKILL_REPO"
 
 
-def geheime_waarden(env=None):
-    """(omschrijving, bytes, hoofdletters_negeren) voor wat deze sessie en machine kent.
+def sessie_waarden(env=None):
+    """(omschrijving, bytes, hoofdletters_negeren) voor het sessie-id van de draaiende sessie,
+    ook zonder session_ en afgekapt tot de eerste 12 tekens, zoals in een verkorte trailer.
 
-    Het sessie-id van de draaiende sessie (ook zonder session_ en afgekapt tot de eerste
-    12 tekens, zoals in een verkorte trailer) en de naam van de private skill-repo (met en
-    zonder eigenaar). De waarden komen uit de omgeving en staan dus zelf niet in de repo;
-    de omschrijving noemt alleen de variabele, nooit de waarde.
+    De waarden komen uit de omgeving en staan dus zelf niet in de repo; de omschrijving noemt
+    alleen de variabele, nooit de waarde.
     """
     env = os.environ if env is None else env
     uit = []
@@ -191,11 +200,22 @@ def geheime_waarden(env=None):
         kaal = waarde[len("session_"):] if waarde.startswith("session_") else waarde
         for w in {waarde, kaal[:12] if len(kaal) >= 12 else kaal}:
             uit.append((f"sessie-id uit {naam}", w.encode(), False))
-    repo = env.get(SKILL_REPO_OMGEVING, "").strip().strip("/")
-    if repo:
-        for w in {repo, repo.rsplit("/", 1)[-1]}:
-            uit.append((f"skill-repo uit {SKILL_REPO_OMGEVING}", w.lower().encode(), True))
     return uit
+
+
+def skillrepo_waarden(env=None):
+    """Zelfde vorm als sessie_waarden, voor de naam van de private skill-repo (met en zonder
+    eigenaar) uit BUILDFLOW_SKILL_REPO. Leeg als die variabele niet gezet is."""
+    env = os.environ if env is None else env
+    repo = env.get(SKILL_REPO_OMGEVING, "").strip().strip("/")
+    if not repo:
+        return []
+    return [(f"skill-repo uit {SKILL_REPO_OMGEVING}", w.lower().encode(), True)
+            for w in {repo, repo.rsplit("/", 1)[-1]}]
+
+
+def geheime_waarden(env=None):
+    return sessie_waarden(env) + skillrepo_waarden(env)
 
 
 def teksten_van(inhoud):
@@ -214,6 +234,12 @@ def sessie_en_skillrepo_fouten(bronnen, geheim):
                 if NEP_SESSIE.startswith(gevonden):
                     continue
                 fouten.append(f"{plek}: sessie-id {gevonden[:14]}…")
+            for m in SESSIE_LINK.finditer(tekst):
+                if m.group(1).decode("utf-8", "replace").rstrip(".,;:!?") != NEP_SESSIE:
+                    fouten.append(f"{plek}: link naar een Claude Code-sessie")
+            for m in SESSIE_REGEL.finditer(tekst):
+                if m.group(1).decode("utf-8", "replace").strip() not in (NEP_SESSIE, NEP_LINK):
+                    fouten.append(f"{plek}: Claude-Session:-regel")
             klein = tekst.lower()
             for omschrijving, waarde, negeer in geheim:
                 if waarde in (klein if negeer else tekst):
@@ -325,12 +351,23 @@ class Geschiedenis(unittest.TestCase):
         self.assertEqual(paden, [], "echte homemap of e-mailadres gevonden in (een oude "
                          "versie van): " + ", ".join(paden))
 
-    def test_geen_sessie_ids_of_skillrepo_in_geschiedenis_berichten_of_werkkopie(self):
+    def alle_bronnen(self):
         """Ook tests/: elke versie van elk bestand op elke ref, de commit- en tagberichten
         en de getrackte bestanden in de werkkopie."""
         bronnen = [(f"geschiedenis {p}", i) for p, i in self.blobs]
-        bronnen += berichten_als_bronnen() + werkkopie_bronnen()
-        fouten = sessie_en_skillrepo_fouten(bronnen, geheime_waarden())
+        return bronnen + berichten_als_bronnen() + werkkopie_bronnen()
+
+    def test_geen_sessie_ids_in_geschiedenis_berichten_of_werkkopie(self):
+        """Draait altijd, ook zonder BUILDFLOW_SKILL_REPO."""
+        fouten = sessie_en_skillrepo_fouten(self.alle_bronnen(), sessie_waarden())
+        self.assertEqual(fouten, [], "\n".join(fouten))
+
+    def test_geen_skillrepo_in_geschiedenis_berichten_of_werkkopie(self):
+        """Slaat zichtbaar over als BUILDFLOW_SKILL_REPO niet gezet is."""
+        geheim = skillrepo_waarden({SKILL_REPO_OMGEVING: skill_repo(self)})
+        self.assertTrue(geheim)
+        fouten = [f for f in sessie_en_skillrepo_fouten(self.alle_bronnen(), geheim)
+                  if SKILL_REPO_OMGEVING in f]
         self.assertEqual(fouten, [], "\n".join(fouten))
 
     def test_auteurs_committers_en_taggers_zijn_github_noreply(self):
@@ -342,7 +379,8 @@ class Geschiedenis(unittest.TestCase):
         self.assertEqual(fouten, [], "\n".join(fouten))
 
     def test_rapport_auteursregels_en_claude_session_trailers(self):
-        """Geen fout: dit is ter beoordeling voor Joep vóór het publiceren."""
+        """Slaagt altijd en laat zien wat er staat; trailers zelf zijn een fout in
+        test_geen_sessie_ids_in_geschiedenis_berichten_of_werkkopie."""
         auteurs = sorted({f"{c['an']} <{c['ae']}>" for c in self.commits}
                          | {f"{c['cn']} <{c['ce']}>" for c in self.commits})
         trailers = session_trailers(self.commits)
@@ -350,7 +388,7 @@ class Geschiedenis(unittest.TestCase):
         tekst += [f"  {a}" for a in auteurs]
         if trailers:
             tekst.append(f"cp10 ter beoordeling: {len(trailers)} commits met een "
-                         "Claude-Session-trailer (niet als fout geteld):")
+                         "Claude-Session-trailer:")
             tekst += [f"  {h} {t}" for h, t in trailers]
         else:
             tekst.append("cp10 ter beoordeling: geen Claude-Session-trailers")
@@ -412,7 +450,7 @@ class ScanSlaatAanOpGeschiedenis(unittest.TestCase):
     def test_persoonlijke_auteur_en_adres_in_bericht_worden_gevonden(self):
         self.commit("index.html", b"x\n", bericht=f"mail {self.NEP_ADRES}\n\n"
                     "Co-Authored-By: Bot <noreply@anthropic.com>\n"
-                    "Claude-Session: https://claude.ai/code/session_abc",
+                    f"{self.TRAILER} {self.URL}session_abc",
                     auteur=("Iemand", self.NEP_ADRES))
         cs = commits(self.tmp)
         fouten = metadata_fouten(cs, taggers(self.tmp))
@@ -435,18 +473,81 @@ class ScanSlaatAanOpGeschiedenis(unittest.TestCase):
                  ("README.md", b"mail IEMAND@voorbeeld.nl\n")]
         self.assertEqual(zoek_echte_gegevens(blobs, verboden), ["README.md", "tests/a.py"])
 
-    # Nep-ids worden hier opgebouwd, zodat ze niet letterlijk in dit bestand staan en de
-    # scan over de werkkopie er niet op aanslaat.
+    # Nep-ids, links en trailers worden hier opgebouwd, zodat ze niet letterlijk in dit
+    # bestand staan en de scan over de werkkopie er niet op aanslaat.
     LANG_ID = "session_" + "Qx7" * 8
+    URL = "https://claude.ai" + "/code/"
+    TRAILER = "Claude-" + "Session:"
+
+    def plekken(self, bronnen):
+        return sorted({f.split(":")[0] for f in sessie_en_skillrepo_fouten(bronnen, [])})
+
+    def test_afgekapte_ids_in_link_of_trailer_worden_gevonden(self):
+        bronnen = [("link-kort", f"zie {self.URL}session_ABCdef123 hier\n".encode()),
+                   ("link-nep-afgekapt", f"'{self.URL}{NEP_SESSIE[:20]}'\n".encode()),
+                   ("link-zonder-id", f"<a href=\"{self.URL}\">x</a>\n".encode()),
+                   ("link-hoofdletters", f"{self.URL.upper()}session_x\n".encode()),
+                   ("trailer-kort", f"x\n{self.TRAILER} 01AbCd\n".encode()),
+                   ("trailer-nep-afgekapt", f"{self.TRAILER} {NEP_SESSIE[:20]}\n".encode()),
+                   ("trailer-leeg", f"{self.TRAILER}\n".encode()),
+                   ("trailer-kleine-letters", f"{self.TRAILER.lower()} abc\n".encode()),
+                   ("nep-link", f"zie {self.URL}{NEP_SESSIE}.\n".encode()),
+                   ("nep-trailer-link", f"{self.TRAILER} {self.URL}{NEP_SESSIE}\n".encode()),
+                   ("nep-trailer-id", f"{self.TRAILER} {NEP_SESSIE}\n".encode()),
+                   ("trailer-midden-in-regel", f"de waarde achter `{self.TRAILER}`\n".encode()),
+                   ("schoon", b"claude.ai en code/ los van elkaar\n")]
+        self.assertEqual(self.plekken(bronnen),
+                         ["link-hoofdletters", "link-kort", "link-nep-afgekapt",
+                          "link-zonder-id", "trailer-kleine-letters", "trailer-kort",
+                          "trailer-leeg", "trailer-nep-afgekapt"])
+
+    def test_verzonnen_id_met_extra_tekens_in_link_of_trailer_is_fout(self):
+        bronnen = [("link", f"{self.URL}{NEP_SESSIE}Z\n".encode()),
+                   ("trailer", f"{self.TRAILER} {NEP_SESSIE}Z\n".encode())]
+        self.assertEqual(self.plekken(bronnen), ["link", "trailer"])
+
+    def test_afgekapte_link_en_trailer_in_bericht_png_en_werkkopie_worden_gevonden(self):
+        import struct
+        import zlib
+        self.commit("tests/a.py", f"u = '{self.URL}session_ab'\n".encode(),
+                    bericht=f"x\n\n{self.TRAILER} 01Ab")
+        data = b"Comment\0\0" + zlib.compress(f"{self.URL}session_q".encode())
+        png = (b"\x89PNG\r\n\x1a\n" + struct.pack(">I", len(data)) + b"zTXt" + data
+               + b"\0\0\0\0")
+        self.commit("assets/x.png", png)
+        with open(os.path.join(self.tmp, "index.html"), "w") as f:
+            f.write(f"{self.TRAILER} kort\n")
+        self.g("add", "index.html")
+        blobs = [(f"geschiedenis {p}", i) for p, i in geschiedenis_blobs(self.tmp)]
+        fouten = sessie_en_skillrepo_fouten(
+            blobs + berichten_als_bronnen(self.tmp) + werkkopie_bronnen(self.tmp), [])
+        plekken = sorted({f.split(":")[0].split(" ")[0] + " " + f.split(":")[0].split(" ")[-1]
+                          for f in fouten if not f.startswith("commit")})
+        self.assertIn("geschiedenis tests/a.py", plekken, fouten)
+        self.assertIn("geschiedenis assets/x.png", plekken, fouten)
+        self.assertIn("werkkopie index.html", plekken, fouten)
+        self.assertTrue(any(f.startswith("commit") and "Claude-Session" in f for f in fouten),
+                        fouten)
+
+    def test_skillrepo_test_slaat_zichtbaar_over_en_sessiescan_draait_zonder_variabele(self):
+        env = {k: v for k, v in os.environ.items() if k != SKILL_REPO_OMGEVING}
+        with mock.patch.dict(os.environ, env, clear=True):
+            self.assertEqual(skillrepo_waarden(), [])
+            with self.assertRaises(unittest.SkipTest) as ctx:
+                skill_repo(self)
+            self.assertIn(f"{SKILL_REPO_OMGEVING} niet gezet", str(ctx.exception))
+            fouten = sessie_en_skillrepo_fouten([("x", f"{self.URL}session_a".encode())],
+                                                geheime_waarden())
+            self.assertEqual(len(fouten), 1, fouten)
 
     def test_lange_sessie_ids_worden_gevonden_ook_in_tests(self):
-        bronnen = [("tests/a.py", f"url = 'https://claude.ai/code/{self.LANG_ID}'\n".encode()),
+        bronnen = [("tests/a.py", f"url = '{self.URL}{self.LANG_ID}'\n".encode()),
                    ("README.md", f"Claude-Session: {self.LANG_ID}\n".encode()),
                    ("tests/b.py", b"kort = 'session_ABCdef123'\n"),
                    ("tests/c.py", f"nep = '{NEP_SESSIE}'\n".encode()),
                    ("tests/d.py", f"af = '{NEP_SESSIE[:20]}'\n".encode())]
         fouten = sessie_en_skillrepo_fouten(bronnen, [])
-        self.assertEqual([f.split(":")[0] for f in fouten], ["README.md", "tests/a.py"],
+        self.assertEqual(sorted({f.split(":")[0] for f in fouten}), ["README.md", "tests/a.py"],
                          fouten)
         self.assertFalse(any(self.LANG_ID in f for f in fouten), "id helemaal getoond")
 
@@ -484,7 +585,7 @@ class ScanSlaatAanOpGeschiedenis(unittest.TestCase):
         self.commit("index.html", b"x\n", bericht=f"x\n\nClaude-Session: {self.LANG_ID}")
         self.g("tag", "-a", "v0.0.1", "-m", f"zie {self.LANG_ID}")
         fouten = sessie_en_skillrepo_fouten(berichten_als_bronnen(self.tmp), [])
-        self.assertEqual(sorted(f.split(" ")[0] for f in fouten), ["commit", "tag"], fouten)
+        self.assertEqual(sorted({f.split(" ")[0] for f in fouten}), ["commit", "tag"], fouten)
 
     def test_werkkopie_wordt_gescand(self):
         self.commit("tests/a.py", b"schoon\n")

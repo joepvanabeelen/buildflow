@@ -306,9 +306,11 @@ class SanitizeLinks(unittest.TestCase):
         self.assertIn(b"~/tmp/a.txt", alles, "bestandsnaam na de tijdelijke map is weg")
 
     def test_sessielinks_en_trailers_gaan_eruit(self):
-        tekst = ("Zie https://claude.ai/code/session_01AbCdEfGhIjKlMnOpQrStUv voor de run.\n"
-                 "Claude-Session: https://claude.ai/code/session_ABCdef123\n"
-                 "Claude-Session: 01AbCdEfGhIj\n")
+        # Opgebouwd tijdens het draaien, zodat de privacyscan van cp10 er niet op aanslaat.
+        url, trailer = "https://claude.ai" + "/code/", "Claude-" + "Session:"
+        tekst = (f"Zie {url}session_01AbCdEfGhIjKlMnOpQrStUv voor de run.\n"
+                 f"{trailer} {url}session_ABCdef123\n"
+                 f"{trailer} 01AbCdEfGhIj\n")
         schrijf(os.path.join(self.invoer, "commit.txt"), tekst)
         self.draai_ok()
         uit = lees(os.path.join(self.uitvoer, "commit.txt"))
@@ -329,7 +331,8 @@ class SanitizeLinks(unittest.TestCase):
     def test_weigert_binair_bestand_met_tmp_pad_of_gecodeerde_gebruikersmap(self):
         self.weigert("a.bin", b"\x00\xff/tmp/claude-501/x\x00")
         self.weigert("b.bin", b"\x00\xff-Users-joepx-projects\x00")
-        self.weigert("c.bin", b"\x00\xffhttps://claude.ai/code/session_01AbCdEfGhIj\x00")
+        url = b"https://claude.ai" + b"/code/"
+        self.weigert("c.bin", b"\x00\xff" + url + b"session_01AbCdEfGhIj\x00")
 
     def weigert(self, bestand, inhoud):
         schrijf(os.path.join(self.uitvoer, "oud.html"), "oud\n")
