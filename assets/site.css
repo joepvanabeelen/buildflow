@@ -125,7 +125,8 @@ details.ctx[open] summary::after{content:'–'}
 .footer .wrap{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap}
 .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--zwart);color:#fff;padding:10px 18px;border-radius:999px;font-weight:600;opacity:0;transition:opacity .2s;pointer-events:none;z-index:50;max-width:calc(100vw - 32px);text-align:center}
 .toast.aan{opacity:1}
-section[id]{scroll-margin-top:84px}
+.toast.fout{background:var(--fout);color:#fff;width:max-content;border-radius:var(--radius-s)}
+section[id],details[id],p[id]{scroll-margin-top:84px}
 
 /* ============================================================
    Deel 2: nieuw voor de site (design.md, "Overzicht van nieuwe componenten")
@@ -254,7 +255,7 @@ section[id]{scroll-margin-top:84px}
   .kopieer{min-height:44px}
   .volgende .code:has(.kopieer){padding-top:64px}
   .toast:not(.fout){position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;padding:0}
-  section[id]{scroll-margin-top:0}
+  section[id],details[id],p[id]{scroll-margin-top:0}
   .sectie{padding-block:36px}
   .kpis,.sectie.zwart .kpis{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
   .kpi{padding:12px 14px}.kpi .w{font-size:1.4rem}
