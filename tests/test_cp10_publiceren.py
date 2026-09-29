@@ -13,11 +13,14 @@ Git wordt hier alleen lezend aangeroepen in de repo (log, rev-list, cat-file, fo
 config --get). De tests die laten zien dat de scan echt aanslaat, maken een eigen
 wegwerprepo in een tijdelijke map, met expliciete cwd en zonder de globale git-config.
 
-Elke link naar claude.ai met het pad /code/ en elke regel die met Claude-Session: begint is een fout, in elke
-versie van elk bestand, in commit- en tagberichten en in de werkkopie, ongeacht hoe lang het
-id erachter is. De enige uitzondering is het verzonnen id NEP_SESSIE. Testdata met zo'n link
-of regel wordt tijdens het draaien opgebouwd ("Claude-" + "Session:"), zodat de scan er niet
-op aanslaat. De rapporttest schrijft de auteursregels en gevonden trailers daarnaast naar
+Een kaal sessie-id (session_ plus minstens 20 tekens) en het sessie-id uit de omgeving zijn
+overal een fout: in elke versie van elk bestand, in commit- en tagberichten en in de
+werkkopie. In de werkkopie en in de berichten is daarnaast elke link naar claude.ai met het
+pad /code/ (ook gecodeerd als \\/ of %2F) en elke Claude-Session-trailer met een waarde een
+fout, hoe kort het id ook is. De enige uitzondering is het verzonnen id NEP_SESSIE. Testdata
+met zo'n link of trailer wordt tijdens het draaien opgebouwd, zodat de scan er niet op
+aanslaat. Waarom die twee brede patronen niet over oude blobs gaan, staat bij
+sessie_en_skillrepo_fouten. De rapporttest schrijft de auteursregels en gevonden trailers daarnaast naar
 stderr, zodat ze bij het draaien zichtbaar zijn.
 
 De scan op de naam van de private skill-repo draait alleen als BUILDFLOW_SKILL_REPO gezet is
@@ -27,6 +30,7 @@ Groep 2 zijn live-tests tegen GitHub. Ze draaien alleen met BUILDFLOW_LIVE=1 en 
 anders overgeslagen met de reden 'BUILDFLOW_LIVE niet gezet', zonder één netwerkverzoek
 of gh-aanroep. Ook met BUILDFLOW_LIVE=1 lezen ze alleen.
 """
+import collections
 import getpass
 import hashlib
 import os
@@ -75,10 +79,11 @@ def git(*args, cwd=ROOT, env=None):
     return uit.stdout
 
 
-def geschiedenis_blobs(cwd=ROOT):
-    """(pad, inhoud) voor elke blob in de geschiedenis van alle refs (branches, remotes, tags)."""
+def geschiedenis_blobs(cwd=ROOT, refs=("--all",)):
+    """(pad, inhoud) voor elke blob in de geschiedenis van refs, standaard alle refs
+    (branches, remotes, tags)."""
     paden = {}
-    for regel in git("rev-list", "--all", "--objects", cwd=cwd).decode("utf-8").splitlines():
+    for regel in git("rev-list", *refs, "--objects", cwd=cwd).decode("utf-8").splitlines():
         sha, _, pad = regel.partition(" ")
         if pad:
             paden.setdefault(sha, pad)
@@ -172,13 +177,18 @@ def zoek_echte_gegevens(blobs, verboden):
 
 # Sessie-ids en de private skill-repo. Een kaal id (session_ plus minstens 20 tekens) is fout,
 # behalve het verzonnen id dat de tests als voorbeeld gebruiken en voorvoegsels daarvan.
-# Een link naar claude.ai met het pad /code/ of een regel die met Claude-Session: begint is altijd fout, hoe
-# kort het id ook is; daar is alleen het volledige verzonnen id toegestaan.
+# SESSIE_LINK vindt een link naar claude.ai met het pad /code/, ook als de schuine strepen als
+# \/ (JSON) of %2F (url) gecodeerd zijn. SESSIE_REGEL vindt een sessietrailer overal in een
+# regel. Beide zijn fout hoe kort het id ook is; alleen het volledige verzonnen id mag, en
+# achter de trailer ook de vervanging [sessielink] van sanitize_demo.py. Een trailer telt pas
+# als er een waarde achter staat die met een letter, cijfer, _ of % begint, of als er niets
+# achter staat: tekst die de trailer alleen noemt (tussen backticks of in een regex) is geen lek.
 NEP_SESSIE = "session_01AbCdEfGhIjKlMnOpQrStUv"
 SESSIE_ID = re.compile(rb"session_[A-Za-z0-9]{20,}")
-SESSIE_LINK = re.compile(rb"claude\.ai/code/([^\s\"'<>()\\]*)", re.I)
-SESSIE_REGEL = re.compile(rb"^claude-session:[ \t]*([^\r\n]*)", re.I | re.M)
+SESSIE_LINK = re.compile(rb"claude\.ai(?:/|\\/|%2f)code(?:/|\\/|%2f)([^\s\"'<>()\\&%]*)", re.I)
+SESSIE_REGEL = re.compile(rb"claude-session:[ \t]*([^\r\n]*)", re.I)
 NEP_LINK = "https://claude.ai" + "/code/" + NEP_SESSIE
+TRAILER_TOEGESTAAN = (NEP_SESSIE, NEP_LINK, "[sessielink]")
 SESSIE_OMGEVING = ("CLAUDE_SESSION_ID", "CLAUDE_CODE_SESSION_ID",
                    "CLAUDE_CODE_BRIDGE_SESSION_ID")
 SKILL_REPO_OMGEVING = "BUILDFLOW_SKILL_REPO"
@@ -224,8 +234,24 @@ def teksten_van(inhoud):
     return [inhoud] + [tekst for _, tekst, _ in stukken]
 
 
-def sessie_en_skillrepo_fouten(bronnen, geheim):
-    """Meldingen voor (plek, bytes)-bronnen; toont nooit een gevonden waarde helemaal."""
+def trailer_is_fout(waarde):
+    waarde = waarde.strip()
+    if not waarde:
+        return True
+    if not re.match(r"[A-Za-z0-9_%]", waarde):
+        return False
+    return waarde.split()[0].rstrip(".,;:!?") not in TRAILER_TOEGESTAAN
+
+
+def sessie_en_skillrepo_fouten(bronnen, geheim, breed=True):
+    """Meldingen voor (plek, bytes)-bronnen; toont nooit een gevonden waarde helemaal.
+
+    breed=True (werkkopie, commit- en tagberichten): alle patronen. breed=False (oude blobs in
+    de geschiedenis): alleen SESSIE_ID en de waarden uit de omgeving, want oude versies van
+    scripts/sanitize_demo.py en de tests bevatten letterlijke links met korte, verzonnen id's
+    en die geschiedenis herschrijven we niet opnieuw; een echt id is altijd 20+ tekens of staat
+    in de omgeving, dus een echt lek wordt ook zo gevonden.
+    """
     fouten = []
     for plek, inhoud in bronnen:
         for tekst in teksten_van(inhoud):
@@ -234,17 +260,28 @@ def sessie_en_skillrepo_fouten(bronnen, geheim):
                 if NEP_SESSIE.startswith(gevonden):
                     continue
                 fouten.append(f"{plek}: sessie-id {gevonden[:14]}…")
-            for m in SESSIE_LINK.finditer(tekst):
+            for m in SESSIE_LINK.finditer(tekst) if breed else ():
                 if m.group(1).decode("utf-8", "replace").rstrip(".,;:!?") != NEP_SESSIE:
                     fouten.append(f"{plek}: link naar een Claude Code-sessie")
-            for m in SESSIE_REGEL.finditer(tekst):
-                if m.group(1).decode("utf-8", "replace").strip() not in (NEP_SESSIE, NEP_LINK):
-                    fouten.append(f"{plek}: Claude-Session:-regel")
+            for m in SESSIE_REGEL.finditer(tekst) if breed else ():
+                if trailer_is_fout(m.group(1).decode("utf-8", "replace")):
+                    fouten.append(f"{plek}: sessietrailer")
             klein = tekst.lower()
             for omschrijving, waarde, negeer in geheim:
                 if waarde in (klein if negeer else tekst):
                     fouten.append(f"{plek}: {omschrijving}")
     return sorted(set(fouten))
+
+
+def scan_sessies(geheim, cwd=ROOT, blobs=None):
+    """Sessie- en skill-repo-meldingen voor een repo: oude blobs smal, berichten en werkkopie
+    breed (zie sessie_en_skillrepo_fouten)."""
+    blobs = geschiedenis_blobs(cwd) if blobs is None else blobs
+    return sorted(set(
+        sessie_en_skillrepo_fouten([(f"geschiedenis {p}", i) for p, i in blobs], geheim,
+                                   breed=False)
+        + sessie_en_skillrepo_fouten(berichten_als_bronnen(cwd) + werkkopie_bronnen(cwd),
+                                     geheim)))
 
 
 def berichten_als_bronnen(cwd=ROOT):
@@ -308,7 +345,7 @@ def bericht_fouten(cs):
 
 def session_trailers(cs):
     return [(c["hash"][:12], r.strip()) for c in cs for r in c["bericht"].splitlines()
-            if r.lower().startswith("claude-session:")]
+            if r.lower().startswith("claude-" + "session:")]
 
 
 def meld(tekst):
@@ -351,22 +388,17 @@ class Geschiedenis(unittest.TestCase):
         self.assertEqual(paden, [], "echte homemap of e-mailadres gevonden in (een oude "
                          "versie van): " + ", ".join(paden))
 
-    def alle_bronnen(self):
-        """Ook tests/: elke versie van elk bestand op elke ref, de commit- en tagberichten
-        en de getrackte bestanden in de werkkopie."""
-        bronnen = [(f"geschiedenis {p}", i) for p, i in self.blobs]
-        return bronnen + berichten_als_bronnen() + werkkopie_bronnen()
-
     def test_geen_sessie_ids_in_geschiedenis_berichten_of_werkkopie(self):
-        """Draait altijd, ook zonder BUILDFLOW_SKILL_REPO."""
-        fouten = sessie_en_skillrepo_fouten(self.alle_bronnen(), sessie_waarden())
+        """Draait altijd, ook zonder BUILDFLOW_SKILL_REPO. Ook tests/: elke versie van elk
+        bestand op elke ref, de commit- en tagberichten en de werkkopie."""
+        fouten = scan_sessies(sessie_waarden(), blobs=self.blobs)
         self.assertEqual(fouten, [], "\n".join(fouten))
 
     def test_geen_skillrepo_in_geschiedenis_berichten_of_werkkopie(self):
         """Slaat zichtbaar over als BUILDFLOW_SKILL_REPO niet gezet is."""
         geheim = skillrepo_waarden({SKILL_REPO_OMGEVING: skill_repo(self)})
         self.assertTrue(geheim)
-        fouten = [f for f in sessie_en_skillrepo_fouten(self.alle_bronnen(), geheim)
+        fouten = [f for f in scan_sessies(geheim, blobs=self.blobs)
                   if SKILL_REPO_OMGEVING in f]
         self.assertEqual(fouten, [], "\n".join(fouten))
 
@@ -506,28 +538,56 @@ class ScanSlaatAanOpGeschiedenis(unittest.TestCase):
                    ("trailer", f"{self.TRAILER} {NEP_SESSIE}Z\n".encode())]
         self.assertEqual(self.plekken(bronnen), ["link", "trailer"])
 
-    def test_afgekapte_link_en_trailer_in_bericht_png_en_werkkopie_worden_gevonden(self):
+    def test_scope_brede_patronen_in_werkkopie_en_berichten_smalle_in_oude_blobs(self):
         import struct
         import zlib
-        self.commit("tests/a.py", f"u = '{self.URL}session_ab'\n".encode(),
-                    bericht=f"x\n\n{self.TRAILER} 01Ab")
+        # Oude blobs: korte, verzonnen links en trailers (zoals in de oude testdata) tellen
+        # niet, een lang id wel, ook in een PNG-tekstchunk.
+        self.commit("tests/oud.py", f"u = '{self.URL}session_ab'\n{self.TRAILER} 01Ab\n"
+                    .encode(), bericht="schoon")
         data = b"Comment\0\0" + zlib.compress(f"{self.URL}session_q".encode())
         png = (b"\x89PNG\r\n\x1a\n" + struct.pack(">I", len(data)) + b"zTXt" + data
                + b"\0\0\0\0")
-        self.commit("assets/x.png", png)
+        self.commit("assets/x.png", png, bericht="schoon")
+        self.commit("tests/lang.py", f"id = '{self.LANG_ID}'\n".encode(), bericht="schoon")
+        # Alles weer schoon in de werkkopie, zodat alleen de oude versies over zijn.
+        for pad in ("tests/oud.py", "tests/lang.py", "assets/x.png"):
+            self.g("rm", "-q", pad)
+        self.g("commit", "-q", "-m", "schoon")
+        # Een afgekapte link in een bericht en een afgekapte trailer in de werkkopie.
+        self.commit("index.html", b"x\n", bericht=f"x\n\nzie {self.URL}{NEP_SESSIE[:20]}")
         with open(os.path.join(self.tmp, "index.html"), "w") as f:
-            f.write(f"{self.TRAILER} kort\n")
-        self.g("add", "index.html")
-        blobs = [(f"geschiedenis {p}", i) for p, i in geschiedenis_blobs(self.tmp)]
-        fouten = sessie_en_skillrepo_fouten(
-            blobs + berichten_als_bronnen(self.tmp) + werkkopie_bronnen(self.tmp), [])
-        plekken = sorted({f.split(":")[0].split(" ")[0] + " " + f.split(":")[0].split(" ")[-1]
-                          for f in fouten if not f.startswith("commit")})
-        self.assertIn("geschiedenis tests/a.py", plekken, fouten)
-        self.assertIn("geschiedenis assets/x.png", plekken, fouten)
-        self.assertIn("werkkopie index.html", plekken, fouten)
-        self.assertTrue(any(f.startswith("commit") and "Claude-Session" in f for f in fouten),
-                        fouten)
+            f.write(f"<p>{self.TRAILER} {NEP_SESSIE[:20]}</p>\n")
+        fouten = scan_sessies([], cwd=self.tmp)
+        plekken = collections.Counter(f.split(":")[0].split(" ")[0] + " "
+                                      + f.split(":")[0].split(" ")[-1] for f in fouten)
+        laatste = git("rev-parse", "HEAD", cwd=self.tmp).decode().strip()[:12]
+        self.assertEqual(plekken, collections.Counter({
+            "geschiedenis tests/lang.py": 1, f"commit {laatste}": 1,
+            "werkkopie index.html": 1}), fouten)
+        # Dezelfde korte link is in een blob wel fout als de brede scan erover gaat.
+        self.assertEqual(len(sessie_en_skillrepo_fouten(
+            [("x", f"{self.URL}session_ab".encode())], [], breed=True)), 1)
+
+    def test_gecodeerde_links_en_trailer_midden_in_regel_worden_gevonden(self):
+        json_url = self.URL.replace("/", "\\/")
+        pct_url = urllib.parse.quote(self.URL, safe=":")
+        bronnen = [("json", f'{{"u": "{json_url}session_ab"}}\n'.encode()),
+                   ("json-hoofdletters", f'"{json_url.upper()}X"\n'.encode()),
+                   ("pct", f"?next={pct_url}session_ab&x=1\n".encode()),
+                   ("pct-klein", f"?next={pct_url.lower()}session_ab\n".encode()),
+                   ("pct-nep", f"?next={pct_url}{NEP_SESSIE}&x=1\n".encode()),
+                   ("trailer-midden", f"tekst {self.TRAILER} 01AbCd\n".encode()),
+                   ("trailer-in-html", f"<p>{self.TRAILER.upper()} x</p>\n".encode()),
+                   ("trailer-vervangen", f"{self.TRAILER} [sessielink]\n".encode()),
+                   ("trailer-genoemd", f"de waarde achter `{self.TRAILER}` wordt\n".encode())]
+        self.assertIn("%2F", pct_url)
+        fouten = sessie_en_skillrepo_fouten(bronnen, [])
+        self.assertEqual(collections.Counter(f.split(":")[0] for f in fouten),
+                         collections.Counter({"json": 1, "json-hoofdletters": 1, "pct": 1,
+                                              "pct-klein": 1, "trailer-midden": 1,
+                                              "trailer-in-html": 1}), fouten)
+        self.assertEqual(sessie_en_skillrepo_fouten(bronnen, [], breed=False), [])
 
     def test_skillrepo_test_slaat_zichtbaar_over_en_sessiescan_draait_zonder_variabele(self):
         env = {k: v for k, v in os.environ.items() if k != SKILL_REPO_OMGEVING}
@@ -542,13 +602,14 @@ class ScanSlaatAanOpGeschiedenis(unittest.TestCase):
 
     def test_lange_sessie_ids_worden_gevonden_ook_in_tests(self):
         bronnen = [("tests/a.py", f"url = '{self.URL}{self.LANG_ID}'\n".encode()),
-                   ("README.md", f"Claude-Session: {self.LANG_ID}\n".encode()),
+                   ("README.md", f"{self.TRAILER} {self.LANG_ID}\n".encode()),
                    ("tests/b.py", b"kort = 'session_ABCdef123'\n"),
                    ("tests/c.py", f"nep = '{NEP_SESSIE}'\n".encode()),
                    ("tests/d.py", f"af = '{NEP_SESSIE[:20]}'\n".encode())]
         fouten = sessie_en_skillrepo_fouten(bronnen, [])
-        self.assertEqual(sorted({f.split(":")[0] for f in fouten}), ["README.md", "tests/a.py"],
-                         fouten)
+        # Per bron: het lange id zelf, plus de link of de trailer eromheen.
+        self.assertEqual(collections.Counter(f.split(":")[0] for f in fouten),
+                         collections.Counter({"README.md": 2, "tests/a.py": 2}), fouten)
         self.assertFalse(any(self.LANG_ID in f for f in fouten), "id helemaal getoond")
 
     def test_verzonnen_id_met_extra_tekens_is_geen_uitzondering(self):
@@ -569,7 +630,7 @@ class ScanSlaatAanOpGeschiedenis(unittest.TestCase):
                "CLAUDE_CODE_SESSION_ID": "0f0f0f0f-aaaa-bbbb-cccc-121212121212",
                SKILL_REPO_OMGEVING: "iemand/Geheime-Skills"}
         geheim = geheime_waarden(env)
-        bronnen = [("verkort", f"Claude-Session: {kaal[:12]}\n".encode()),
+        bronnen = [("verkort", f"{self.TRAILER} {kaal[:12]}\n".encode()),
                    ("uuid", b"id 0f0f0f0f-aaaa-bbbb-cccc-121212121212\n"),
                    ("repo", b"zie github.com/iemand/geheime-skills\n"),
                    ("alleen-naam", b"de map GEHEIME-SKILLS\n"),
@@ -582,10 +643,12 @@ class ScanSlaatAanOpGeschiedenis(unittest.TestCase):
         self.assertEqual(geheime_waarden({}), [])
 
     def test_sessie_id_in_commitbericht_en_tag_wordt_gevonden(self):
-        self.commit("index.html", b"x\n", bericht=f"x\n\nClaude-Session: {self.LANG_ID}")
+        self.commit("index.html", b"x\n", bericht=f"x\n\n{self.TRAILER} {self.LANG_ID}")
         self.g("tag", "-a", "v0.0.1", "-m", f"zie {self.LANG_ID}")
         fouten = sessie_en_skillrepo_fouten(berichten_als_bronnen(self.tmp), [])
-        self.assertEqual(sorted({f.split(" ")[0] for f in fouten}), ["commit", "tag"], fouten)
+        # Commit: het id en de trailer; tag: alleen het id.
+        self.assertEqual(collections.Counter(f.split(" ")[0] for f in fouten),
+                         collections.Counter({"commit": 2, "tag": 1}), fouten)
 
     def test_werkkopie_wordt_gescand(self):
         self.commit("tests/a.py", b"schoon\n")
