@@ -456,8 +456,10 @@ class PublicerenMislukt(Cp06Basis):
         self.assertIn(f"git tag -a {VERSIE}", fouttekst)
         # terugdraaien: tag weg en commit weg (die is nog niet gepusht)
         self.assertIn(f"git tag -d {VERSIE}", fouttekst)
-        # HEAD~1 of origin/main: vóór de push naar main zijn die hier gelijk (cp10)
-        self.assertRegex(fouttekst, r"git reset --hard (HEAD~1|origin/main)")
+        # release.py raadt origin/main aan: dat klopt ook als onbekend is of de commit
+        # gelukt is, HEAD~1 niet (cp10)
+        self.assertIn("git reset --hard origin/main", fouttekst)
+        self.assertNotIn("HEAD~1", fouttekst)
 
     def test_mislukte_tagpush_raadt_geen_reset_aan(self):
         uit = self.publiceer({"NEP_FAAL": f"git push origin {VERSIE}"})

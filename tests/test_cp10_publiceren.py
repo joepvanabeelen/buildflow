@@ -164,6 +164,87 @@ def zoek_echte_gegevens(blobs, verboden):
                    if any(v in inhoud.lower() for v in verboden)})
 
 
+# Sessie-ids en de private skill-repo. Eén benoemde uitzondering: het verzonnen id dat de
+# tests als voorbeeld gebruiken, en voorvoegsels daarvan (voor afgekapte varianten).
+# Korte ids (minder dan 20 tekens na session_, zoals session_ABCdef123) zijn duidelijk nep.
+NEP_SESSIE = "session_01AbCdEfGhIjKlMnOpQrStUv"
+SESSIE_ID = re.compile(rb"session_[A-Za-z0-9]{20,}")
+SESSIE_OMGEVING = ("CLAUDE_SESSION_ID", "CLAUDE_CODE_SESSION_ID",
+                   "CLAUDE_CODE_BRIDGE_SESSION_ID")
+SKILL_REPO_OMGEVING = "BUILDFLOW_SKILL_REPO"
+
+
+def geheime_waarden(env=None):
+    """(omschrijving, bytes, hoofdletters_negeren) voor wat deze sessie en machine kent.
+
+    Het sessie-id van de draaiende sessie (ook zonder session_ en afgekapt tot de eerste
+    12 tekens, zoals in een verkorte trailer) en de naam van de private skill-repo (met en
+    zonder eigenaar). De waarden komen uit de omgeving en staan dus zelf niet in de repo;
+    de omschrijving noemt alleen de variabele, nooit de waarde.
+    """
+    env = os.environ if env is None else env
+    uit = []
+    for naam in SESSIE_OMGEVING:
+        waarde = env.get(naam, "").strip()
+        if len(waarde) < 8:
+            continue
+        kaal = waarde[len("session_"):] if waarde.startswith("session_") else waarde
+        for w in {waarde, kaal[:12] if len(kaal) >= 12 else kaal}:
+            uit.append((f"sessie-id uit {naam}", w.encode(), False))
+    repo = env.get(SKILL_REPO_OMGEVING, "").strip().strip("/")
+    if repo:
+        for w in {repo, repo.rsplit("/", 1)[-1]}:
+            uit.append((f"skill-repo uit {SKILL_REPO_OMGEVING}", w.lower().encode(), True))
+    return uit
+
+
+def teksten_van(inhoud):
+    """De ruwe bytes, plus de uitgepakte tekstchunks als het een PNG is."""
+    stukken = check_privacy._png_stukken(inhoud) or []
+    return [inhoud] + [tekst for _, tekst, _ in stukken]
+
+
+def sessie_en_skillrepo_fouten(bronnen, geheim):
+    """Meldingen voor (plek, bytes)-bronnen; toont nooit een gevonden waarde helemaal."""
+    fouten = []
+    for plek, inhoud in bronnen:
+        for tekst in teksten_van(inhoud):
+            for m in SESSIE_ID.finditer(tekst):
+                gevonden = m.group(0).decode()
+                if NEP_SESSIE.startswith(gevonden):
+                    continue
+                fouten.append(f"{plek}: sessie-id {gevonden[:14]}…")
+            klein = tekst.lower()
+            for omschrijving, waarde, negeer in geheim:
+                if waarde in (klein if negeer else tekst):
+                    fouten.append(f"{plek}: {omschrijving}")
+    return sorted(set(fouten))
+
+
+def berichten_als_bronnen(cwd=ROOT):
+    """Commitberichten en tagberichten van alle refs als (plek, bytes)."""
+    bronnen = [(f"commit {c['hash'][:12]}", c["bericht"].encode()) for c in commits(cwd)]
+    uit = git("for-each-ref", "refs/tags", "--format=%(refname:short)%1f%(contents)%1e",
+              cwd=cwd)
+    for stuk in uit.split(b"\x1e"):
+        naam, _, bericht = stuk.strip(b"\n").partition(b"\x1f")
+        if naam:
+            bronnen.append((f"tag {naam.decode()}", bericht))
+    return bronnen
+
+
+def werkkopie_bronnen(cwd=ROOT):
+    """Elk getrackt bestand zoals het nu in de werkkopie staat, ook als het nog niet is
+    gecommit."""
+    bronnen = []
+    for pad in git("ls-files", "-z", cwd=cwd).decode("utf-8").split("\0"):
+        vol = os.path.join(cwd, pad)
+        if pad and os.path.isfile(vol):
+            with open(vol, "rb") as f:
+                bronnen.append((f"werkkopie {pad}", f.read()))
+    return bronnen
+
+
 def in_publieke_set(pad):
     if NOOIT.search(pad):
         return False
@@ -231,7 +312,8 @@ class Geschiedenis(unittest.TestCase):
                          + "\n".join(buiten))
 
     def test_niets_persoonlijks_in_bestanden_buiten_tests(self):
-        # tests/ bevat bewust neppaden en nepadressen als testdata; die toetst de volgende test
+        # tests/ bevat bewust neppaden en nepadressen als testdata. Echte gegevens, sessie-ids
+        # en de skill-repo worden ook in tests/ gezocht, door de twee tests hieronder.
         meldingen = []
         for pad, inhoud in self.blobs:
             if not pad.startswith("tests/"):
@@ -242,6 +324,14 @@ class Geschiedenis(unittest.TestCase):
         paden = zoek_echte_gegevens(self.blobs, echte_gegevens())
         self.assertEqual(paden, [], "echte homemap of e-mailadres gevonden in (een oude "
                          "versie van): " + ", ".join(paden))
+
+    def test_geen_sessie_ids_of_skillrepo_in_geschiedenis_berichten_of_werkkopie(self):
+        """Ook tests/: elke versie van elk bestand op elke ref, de commit- en tagberichten
+        en de getrackte bestanden in de werkkopie."""
+        bronnen = [(f"geschiedenis {p}", i) for p, i in self.blobs]
+        bronnen += berichten_als_bronnen() + werkkopie_bronnen()
+        fouten = sessie_en_skillrepo_fouten(bronnen, geheime_waarden())
+        self.assertEqual(fouten, [], "\n".join(fouten))
 
     def test_auteurs_committers_en_taggers_zijn_github_noreply(self):
         fouten = metadata_fouten(self.commits, self.tags)
@@ -345,6 +435,65 @@ class ScanSlaatAanOpGeschiedenis(unittest.TestCase):
                  ("README.md", b"mail IEMAND@voorbeeld.nl\n")]
         self.assertEqual(zoek_echte_gegevens(blobs, verboden), ["README.md", "tests/a.py"])
 
+    # Nep-ids worden hier opgebouwd, zodat ze niet letterlijk in dit bestand staan en de
+    # scan over de werkkopie er niet op aanslaat.
+    LANG_ID = "session_" + "Qx7" * 8
+
+    def test_lange_sessie_ids_worden_gevonden_ook_in_tests(self):
+        bronnen = [("tests/a.py", f"url = 'https://claude.ai/code/{self.LANG_ID}'\n".encode()),
+                   ("README.md", f"Claude-Session: {self.LANG_ID}\n".encode()),
+                   ("tests/b.py", b"kort = 'session_ABCdef123'\n"),
+                   ("tests/c.py", f"nep = '{NEP_SESSIE}'\n".encode()),
+                   ("tests/d.py", f"af = '{NEP_SESSIE[:20]}'\n".encode())]
+        fouten = sessie_en_skillrepo_fouten(bronnen, [])
+        self.assertEqual([f.split(":")[0] for f in fouten], ["README.md", "tests/a.py"],
+                         fouten)
+        self.assertFalse(any(self.LANG_ID in f for f in fouten), "id helemaal getoond")
+
+    def test_verzonnen_id_met_extra_tekens_is_geen_uitzondering(self):
+        fouten = sessie_en_skillrepo_fouten([("x", (NEP_SESSIE + "Z").encode())], [])
+        self.assertEqual(len(fouten), 1, fouten)
+
+    def test_sessie_id_in_png_tekstchunk_wordt_gevonden(self):
+        import struct
+        import zlib
+        data = b"Comment\0\0" + zlib.compress(self.LANG_ID.encode())
+        chunk = struct.pack(">I", len(data)) + b"zTXt" + data + b"\0\0\0\0"
+        png = b"\x89PNG\r\n\x1a\n" + chunk
+        self.assertEqual(len(sessie_en_skillrepo_fouten([("a.png", png)], [])), 1)
+
+    def test_sessie_id_en_skillrepo_uit_de_omgeving_worden_gevonden(self):
+        kaal = "Zq" * 12
+        env = {"CLAUDE_CODE_BRIDGE_SESSION_ID": "session_" + kaal,
+               "CLAUDE_CODE_SESSION_ID": "0f0f0f0f-aaaa-bbbb-cccc-121212121212",
+               SKILL_REPO_OMGEVING: "iemand/Geheime-Skills"}
+        geheim = geheime_waarden(env)
+        bronnen = [("verkort", f"Claude-Session: {kaal[:12]}\n".encode()),
+                   ("uuid", b"id 0f0f0f0f-aaaa-bbbb-cccc-121212121212\n"),
+                   ("repo", b"zie github.com/iemand/geheime-skills\n"),
+                   ("alleen-naam", b"de map GEHEIME-SKILLS\n"),
+                   ("schoon", b"niets hier\n")]
+        fouten = sessie_en_skillrepo_fouten(bronnen, geheim)
+        self.assertEqual(sorted({f.split(":")[0] for f in fouten}),
+                         ["alleen-naam", "repo", "uuid", "verkort"], fouten)
+        self.assertFalse(any(kaal[:12] in f or "geheime" in f.lower() for f in fouten),
+                         "de gevonden waarde hoort niet in de melding")
+        self.assertEqual(geheime_waarden({}), [])
+
+    def test_sessie_id_in_commitbericht_en_tag_wordt_gevonden(self):
+        self.commit("index.html", b"x\n", bericht=f"x\n\nClaude-Session: {self.LANG_ID}")
+        self.g("tag", "-a", "v0.0.1", "-m", f"zie {self.LANG_ID}")
+        fouten = sessie_en_skillrepo_fouten(berichten_als_bronnen(self.tmp), [])
+        self.assertEqual(sorted(f.split(" ")[0] for f in fouten), ["commit", "tag"], fouten)
+
+    def test_werkkopie_wordt_gescand(self):
+        self.commit("tests/a.py", b"schoon\n")
+        with open(os.path.join(self.tmp, "tests", "a.py"), "w") as f:
+            f.write(self.LANG_ID)
+        fouten = sessie_en_skillrepo_fouten(werkkopie_bronnen(self.tmp), [])
+        self.assertEqual(len(fouten), 1, fouten)
+        self.assertIn("werkkopie tests/a.py", fouten[0])
+
     def test_publieke_set(self):
         for pad in ("index.html", "assets/site.css", "voorbeeld/cp01.html", "tests/x.py",
                     "scripts/release.py", "docs/design/design.md", ".nojekyll"):
@@ -437,12 +586,36 @@ def eis_live():
 
 def haal(url, timeout=30):
     """(status, bytes) na redirects, zonder token."""
-    verzoek = urllib.request.Request(url, headers={"User-Agent": "buildflow-website-cp10"})
+    verzoek = urllib.request.Request(url, headers={"User-Agent": "buildflow-cp10"})
     try:
         with urllib.request.urlopen(verzoek, timeout=timeout) as r:
             return r.status, r.read()
     except urllib.error.HTTPError as e:
         return e.code, e.read()
+
+
+def echte_release(versie=VERSIE):
+    """Versie, datum en grootte van de gepubliceerde release, via de publieke GitHub-API.
+
+    Met dezelfde notatie als release.py op de pagina zet: nl_datum voor publishedAt (in de
+    lokale tijdzone, zoals release.py 'vandaag' bepaalt) en kb voor de grootte van
+    buildflow.zip.
+    """
+    import datetime
+    import json
+    release = cp06.importeer_release()
+    status, body = haal(f"https://api.github.com/repos/{REPO_NAAM}/releases/tags/{versie}")
+    if status != 200:
+        raise AssertionError(f"release {versie} opvragen gaf {status}")
+    data = json.loads(body)
+    zips = [a for a in data["assets"] if a["name"] == "buildflow.zip"]
+    if len(zips) != 1:
+        raise AssertionError(f"release {versie} heeft geen (unieke) buildflow.zip: "
+                             f"{[a['name'] for a in data['assets']]}")
+    gepubliceerd = datetime.datetime.fromisoformat(data["published_at"].replace("Z", "+00:00"))
+    return sorted([("datum", release.nl_datum(gepubliceerd.astimezone().date())),
+                   ("grootte", release.kb(zips[0]["size"])),
+                   ("versie", data["tag_name"])])
 
 
 def release_waarden(html):
@@ -480,6 +653,14 @@ class LiveSite(LiveBasis):
         self.assertEqual(release_waarden(live_html), release_waarden(lokaal))
         self.assertNotIn("volgt", [w for _, w in release_waarden(live_html)],
                          "datum of grootte is niet ingevuld")
+        # Elke waarde op de live pagina hoort bij de echte release op GitHub.
+        echt = dict(echte_release())
+        for soort, waarde in release_waarden(live_html):
+            with self.subTest(soort=soort):
+                self.assertEqual(waarde, echt[soort],
+                                 f"{soort} op de live pagina wijkt af van release {VERSIE}")
+        self.assertEqual({s for s, _ in release_waarden(live_html)}, set(echt),
+                         "de live pagina toont niet alle releasewaarden")
 
     def test_alle_links_naar_voorbeeld_en_assets_geven_200(self):
         html = lees(INDEX)
@@ -528,15 +709,26 @@ class LiveProjectInstallatie(LiveDownloadZip, cp07.ProjectInstallatie):
     pass
 
 
+def skill_repo(test):
+    """De naam van de private skill-repo uit de omgeving; die staat nergens in de repo."""
+    repo = os.environ.get(SKILL_REPO_OMGEVING, "").strip().strip("/")
+    if not repo:
+        test.skipTest(f"{SKILL_REPO_OMGEVING} niet gezet; zet die op eigenaar/naam van de "
+                      "private skill-repo om te toetsen dat hij privé blijft")
+    if "/" not in repo:
+        repo = f"{REPO_NAAM.split('/')[0]}/{repo}"
+    return repo
+
+
 class LiveRepos(LiveBasis):
-    def test_buildflow_website_is_openbaar(self):
+    def test_buildflow_repo_is_openbaar(self):
         status, body = haal(f"https://api.github.com/repos/{REPO_NAAM}")
         self.assertEqual(status, 200)
         self.assertIn(b'"private": false', body.replace(b'"private":false', b'"private": false'))
 
-    def test_claude_skills_is_anoniem_niet_te_zien(self):
-        status, _ = haal("https://api.github.com/repos/joepvanabeelen/SKILLREPO")
-        self.assertEqual(status, 404)
+    def test_skillrepo_is_anoniem_niet_te_zien(self):
+        status, _ = haal(f"https://api.github.com/repos/{skill_repo(self)}")
+        self.assertEqual(status, 404, "de skill-repo is zonder inloggen te zien")
 
     def gh(self, *args):
         if shutil.which("gh") is None:
@@ -548,8 +740,8 @@ class LiveRepos(LiveBasis):
         self.assertEqual(uit.returncode, 0, uit.stderr)
         return uit.stdout
 
-    def test_claude_skills_is_private_volgens_gh(self):
-        uit = self.gh("repo", "view", "joepvanabeelen/SKILLREPO", "--json", "visibility")
+    def test_skillrepo_is_private_volgens_gh(self):
+        uit = self.gh("repo", "view", skill_repo(self), "--json", "visibility")
         self.assertIn('"PRIVATE"', uit.replace(" ", ""))
 
     def test_pages_serveert_main_vanuit_de_root(self):
