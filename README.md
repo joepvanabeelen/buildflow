@@ -2,6 +2,8 @@
 
 Statische website voor de buildflow-skill (Claude Code): wat hij doet, hoe je hem gebruikt, installatie en download.
 
+De site staat op https://joepvanabeelen.github.io/buildflow/. GitHub Pages publiceert hem vanaf de branch `main` van deze repo, `joepvanabeelen/buildflow`, uit de root. De zip met de skill staat bij de releases van dezelfde repo; de eerste is [v1.0.0](https://github.com/joepvanabeelen/buildflow/releases/tag/v1.0.0).
+
 ## Lokaal bekijken
 
 Er is geen buildstap en er zijn geen dependencies. Start vanuit de root van de repo een simpele webserver en open daarna http://localhost:8765/ in je browser:
@@ -46,9 +48,25 @@ Voor de feitencontrole is een map nodig met de skill erin: `SKILL.md`, `README.m
 BUILDFLOW_SKILL_SRC=/pad/naar/buildflow python3 -m unittest discover -s tests -v
 ```
 
-Zonder lokale kopie van de skill kun je, zodra er een release is, `buildflow.zip` van de Releases-pagina van deze repo downloaden, uitpakken en `BUILDFLOW_SKILL_SRC` op de uitgepakte map `buildflow` zetten.
+Zonder lokale kopie van de skill download je `buildflow.zip` van de Releases-pagina van deze repo, pak je hem uit en zet je `BUILDFLOW_SKILL_SRC` op de uitgepakte map `buildflow`.
 
 Vindt de test geen skillmap, dan draaien alle andere tests gewoon, maar de feitentests in `test_cp04_feiten.py` worden niet overgeslagen: ze falen met één fout die zegt welk pad gezocht is en naar deze sectie verwijst. De hele run eindigt dan dus als mislukt. `python3 tests/check_facts.py` geeft in dat geval dezelfde melding en eindigt met exitcode 1.
+
+### Controles rond het publiceren
+
+`tests/test_cp10_publiceren.py` heeft twee groepen. De eerste draait altijd en heeft geen netwerk nodig. Die gaat door de hele git-geschiedenis, alle branches, remotes en tags, en kijkt in elke versie van elk bestand buiten `tests/`, ook in png's, naar persoonlijke paden en e-mailadressen. In `tests/` staan bewust neppaden en nepadressen als testdata, dus daar zoekt de scan alleen naar de echte homemap, de gebruikersnaam als deel van een homepad en het globale git-e-mailadres van de machine waarop je de tests draait (dat laatste niet als het een noreply-adres is). Naar sessie-id's zoekt hij overal, ook in `tests/`. In oude versies van bestanden telt alleen een lang id (`session_` met 20 of meer tekens) of het id van de sessie waarin je de tests draait; links naar claude.ai/code en `Claude-Session`-regels zijn alleen fout in de werkkopie en in commit- en tagberichten. Hij controleert ook dat elk pad dat ooit gecommit is bij de publieke set hoort (`index.html`, `LICENSE`, `README.md`, `.gitignore`, `.nojekyll` en de mappen `assets/`, `voorbeeld/`, `docs/design/`, `scripts/` en `tests/`), dat auteurs, committers en taggers een GitHub-noreply-adres hebben en dat er in commitberichten niets persoonlijks staat. Zonder git-checkout slaan de tests op de geschiedenis van deze repo over. De tests die bewijzen dat de scan echt aanslaat, maken een eigen wegwerprepo in een tijdelijke map.
+
+In deze groep zit ook `HerstelhulpCp06`: die test met de git- en gh-stubs uit `test_cp06_release.py` de herstelhulp van `release.py` na een onderbreking van `git commit` of `gh release create`, dat `gh` met `--repo` de repo uit de push-URL van `origin` krijgt en dat het publicatieplan zonder bevestiging niets publiceert.
+
+Of de naam van de private skill-repo ergens in de geschiedenis staat, wordt alleen gecontroleerd als je `BUILDFLOW_SKILL_REPO` op `eigenaar/naam` van die repo zet. Die naam staat zelf nergens in deze repo, daarom komt hij uit de omgeving. Zonder de variabele slaat die test zichtbaar over; de scan op sessie-id's draait wel.
+
+De tweede groep test tegen GitHub zelf en draait alleen met `BUILDFLOW_LIVE=1`. Zonder die variabele slaat hij over met de reden `BUILDFLOW_LIVE niet gezet`, en dan gebeurt er geen enkel netwerkverzoek of gh-aanroep. Ook live wordt er alleen gelezen:
+
+```
+BUILDFLOW_LIVE=1 BUILDFLOW_SKILL_REPO=<eigenaar/naam> python3 -m unittest tests.test_cp10_publiceren -v
+```
+
+De live tests kijken of de site een 200 geeft met de titel en de releasegegevens uit `index.html` op `main`, en of versie, datum en grootte daar kloppen met de release volgens de publieke GitHub-API. Elke link naar `voorbeeld/` en `assets/` en elk bijgehouden bestand in die mappen moet live een 200 geven. De gedownloade `buildflow.zip` moet byte voor byte gelijk zijn aan `dist/buildflow.zip`, dus die moet lokaal de zip van de release zijn; omdat de bouw vast ligt, levert een `--dry-run` van dezelfde skillmap dezelfde zip op. Met de gedownloade zip draaien `HomeInstallatie` en `ProjectInstallatie` uit `test_cp07_installatie.py` nog een keer; `Isolatie` niet. Tot slot moet deze repo openbaar zijn, moet Pages `main` vanuit `/` serveren en moet de skill-repo zonder inloggen een 404 geven en volgens `gh` privé zijn. De tests die `gh` gebruiken slaan over als `gh` er niet is, en de twee over de skill-repo als `BUILDFLOW_SKILL_REPO` niet gezet is.
 
 ## Een release maken
 
@@ -56,7 +74,7 @@ Een release is één bestand, `buildflow.zip`, met de skill erin, als asset van 
 
 ### Eenmalig, met de hand
 
-Twee dingen doet het script niet, en die hoeven ook maar één keer. Maak de repo op GitHub openbaar. Op een gratis account werkt Pages niet vanuit een privérepo, en zolang de repo privé is kan niemand anders de zip uit de release downloaden. Zet daarna GitHub Pages aan onder Settings > Pages: bij Source kies je "Deploy from a branch", met branch `main` en map `/ (root)`. Het lege bestand `.nojekyll` in de root zorgt dat Pages de bestanden zonder Jekyll-bewerking serveert.
+Twee dingen doet het script niet, en die hoeven ook maar één keer. Voor deze repo zijn ze gedaan: hij is openbaar en Pages serveert `main` vanuit de root op https://joepvanabeelen.github.io/buildflow/. Voor een nieuwe repo gaat het zo. Maak de repo op GitHub openbaar. Op een gratis account werkt Pages niet vanuit een privérepo, en zolang de repo privé is kan niemand anders de zip uit de release downloaden. Zet daarna GitHub Pages aan onder Settings > Pages: bij Source kies je "Deploy from a branch", met branch `main` en map `/ (root)`. Het lege bestand `.nojekyll` in de root zorgt dat Pages de bestanden zonder Jekyll-bewerking serveert.
 
 Voor het publiceren heb je verder `git` en de GitHub CLI `gh` nodig. `gh` moet ingelogd zijn met toegang tot de repo waar `origin` naar wijst.
 
@@ -104,6 +122,8 @@ Daarna bouwt het de zip en laat het een plan zien: de waarden die op de pagina k
 6. `gh release create v1.0.0 dist/buildflow.zip --repo <eigenaar/naam> --verify-tag` met titel en release notes
 
 Als alles lukt, eindigt het met `v1.0.0 is gepubliceerd`. Pages publiceert de bijgewerkte pagina vanzelf vanaf `main`.
+
+De eerste release ging precies zo, met `python3 scripts/release.py --version v1.0.0 --publish` op `main`. De commit `Release v1.0.0` verandert alleen de datum en de grootte in `index.html`; de versie stond er al. De release staat op https://github.com/joepvanabeelen/buildflow/releases/tag/v1.0.0, met `buildflow.zip` van 151 kB als enige asset.
 
 ### Als het misgaat
 
