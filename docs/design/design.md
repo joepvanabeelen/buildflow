@@ -465,7 +465,7 @@ De zwarte sectie.
 
 Versie, datum en grootte komen uit het releasescript. In de HTML staan ze als gewone tekst, zonder API-call naar GitHub.
 
-De haken voor het releasescript zijn elementen met een `data-release`-attribuut. `data-release="versie"` staat op drie plekken: de `b` in de topbalk, de versietegel in `.download` en een `span` in de footer. Die drie moeten dezelfde tekst tonen; de tests controleren dat. `data-release="datum"` en `data-release="grootte"` staan alleen in de downloadkaart. Zolang er geen releasescript is, staat er "volgt" in plaats van een verzonnen datum of grootte; de tests controleren dat daar dan geen cijfer in staat. In het prototype staan voorbeeldwaarden met een `.proto-noot` erbij. De downloadlink is `releases/latest/download/buildflow.zip` en hoeft dus niet mee te veranderen.
+De haken voor het releasescript zijn elementen met een `data-release`-attribuut. `data-release="versie"` staat op drie plekken: de `b` in de topbalk, de versietegel in `.download` en een `span` in de footer. Die drie moeten dezelfde tekst tonen; de tests controleren dat. `data-release="datum"` en `data-release="grootte"` staan alleen in de downloadkaart. Tot de eerste release staat er "volgt" in plaats van een verzonnen datum of grootte; de tests controleren dat daar dan geen cijfer in staat. Bij een release vult `scripts/release.py --version` alleen de tekst van deze elementen in (de datum als `29 sep. 2026`, de grootte in hele kB) en laat de rest van de pagina ongemoeid; de README beschrijft hoe. In het prototype staan voorbeeldwaarden met een `.proto-noot` erbij. De downloadlink is `releases/latest/download/buildflow.zip` en hoeft dus niet mee te veranderen.
 
 ### Vragen en beperkingen
 
