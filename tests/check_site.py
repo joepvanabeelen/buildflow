@@ -4,7 +4,9 @@ Gebruikt door de tests; kan ook los draaien: python3 tests/check_site.py
 """
 import os
 import re
+import struct
 import sys
+import zlib
 from html.parser import HTMLParser
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -99,6 +101,53 @@ class Pagina(HTMLParser):
         return list(self.root.iter())[1:]
 
 
+PNG_SIGNATUUR = b"\x89PNG\r\n\x1a\n"
+
+
+def png_afmetingen(pad):
+    """(breedte, hoogte) uit de IHDR-chunk van een PNG. ValueError als het geen geldige PNG is."""
+    with open(pad, "rb") as f:
+        kop = f.read(33)
+    if len(kop) < 33 or kop[:8] != PNG_SIGNATUUR:
+        raise ValueError(f"{pad}: geen (volledige) PNG")
+    lengte, soort = struct.unpack(">I4s", kop[8:16])
+    if soort != b"IHDR" or lengte != 13:
+        raise ValueError(f"{pad}: eerste chunk is geen IHDR")
+    if zlib.crc32(kop[12:29]) & 0xFFFFFFFF != struct.unpack(">I", kop[29:33])[0]:
+        raise ValueError(f"{pad}: IHDR-crc klopt niet")
+    breedte, hoogte = struct.unpack(">II", kop[16:24])
+    if not breedte or not hoogte:
+        raise ValueError(f"{pad}: breedte of hoogte is 0")
+    return breedte, hoogte
+
+
+def controleer_img_maten(html, root=ROOT):
+    """Foutmeldingen voor elke lokale <img src="...png"> waarvan width/height niet gelijk is
+    aan de echte maat van het bestand, of waarvan het bestand geen geldige PNG is."""
+    fouten = []
+    for el in Pagina(html).elementen():
+        src = (el.attrs.get("src") or "").strip()
+        if el.tag != "img" or not src or heeft_schema(src):
+            continue
+        pad = re.split(r"[?#]", src)[0]
+        if not pad.lower().endswith(".png"):
+            continue
+        volledig = os.path.join(root, pad.lstrip("/"))
+        if not os.path.isfile(volledig):
+            continue  # meldt controleer_links al
+        try:
+            breedte, hoogte = png_afmetingen(volledig)
+        except ValueError as e:
+            fouten.append(f"<img src={src}>: {e}")
+            continue
+        verwacht = (str(breedte), str(hoogte))
+        staat = (el.attrs.get("width"), el.attrs.get("height"))
+        if staat != verwacht:
+            fouten.append(f"<img src={src}>: width/height is {staat[0]}x{staat[1]}, "
+                          f"het bestand is {breedte}x{hoogte}")
+    return fouten
+
+
 def heeft_schema(url):
     return bool(re.match(r"^[a-zA-Z][a-zA-Z0-9+.-]*:", url)) or url.startswith("//")
 
@@ -167,6 +216,6 @@ def design_tokens(design_md=DESIGN_MD):
 
 if __name__ == "__main__":
     html = lees(INDEX)
-    fouten = Pagina(html).fouten + controleer_links(html)
+    fouten = Pagina(html).fouten + controleer_links(html) + controleer_img_maten(html)
     print("\n".join(fouten) or "ok")
     sys.exit(1 if fouten else 0)

@@ -1,4 +1,5 @@
-/* buildflow website: kopieerknoppen, actieve navlink, fases openen en printen.
+/* buildflow website: kopieerknoppen, actieve navlink, fases openen, previews zonder
+   plaatje en printen.
    Zonder dit script werkt de pagina ook; het voegt alleen gemak toe. */
 (function(){
   "use strict";
@@ -106,7 +107,30 @@
     && (nav.type === "reload" || nav.type === "back_forward");
   openDoel(!hersteld);
 
-  // 4. Printen: alle uitklapblokken open, daarna weer zoals ze waren
+  // 4. Een preview waarvan het plaatje niet laadt, krijgt het .leeg-blok: de bestandsnaam en
+  //    "Nog geen afbeelding". De link eromheen blijft werken.
+  function toonLeeg(img){
+    var preview = img.closest(".preview");
+    if(!preview || !img.parentNode) return;
+    var naam = (preview.getAttribute("href") || "").split("/").pop();
+    var leeg = document.createElement("span");
+    leeg.className = "leeg";
+    var code = document.createElement("code");
+    code.textContent = naam;
+    var uitleg = document.createElement("span");
+    uitleg.className = "klein";
+    uitleg.textContent = "Nog geen afbeelding";
+    leeg.appendChild(code);
+    leeg.appendChild(uitleg);
+    img.parentNode.replaceChild(leeg, img);
+  }
+  document.querySelectorAll(".preview img").forEach(function(img){
+    img.addEventListener("error", function(){ toonLeeg(img); });
+    // Al mislukt voordat dit script draaide: meteen vervangen
+    if(img.complete && img.getAttribute("src") && img.naturalWidth === 0) toonLeeg(img);
+  });
+
+  // 5. Printen: alle uitklapblokken open, daarna weer zoals ze waren
   var dicht = null;
   window.addEventListener("beforeprint", function(){
     if(dicht) return; // tweede beforeprint zonder afterprint: de eerste lijst bewaren
