@@ -14,7 +14,7 @@ python3 -m http.server 8765
 
 ## Welke bestanden de site vormen
 
-De pagina is `index.html` in de root, met alle opmaak in `assets/site.css`. In `voorbeeld/` staan de bestanden van de voorbeeldrun waar de pagina naar linkt; hoe die gemaakt zijn, staat onder [De voorbeeldrun](#de-voorbeeldrun). De enige externe bron is Google Fonts. Het lege bestand `.nojekyll` staat er voor GitHub Pages.
+De pagina is `index.html` in de root, met alle opmaak in `assets/site.css`. In `voorbeeld/` staan de bestanden van de voorbeeldrun waar de pagina naar linkt, en in `voorbeeld/deze-site/` een tweede voorbeeld: de run die deze site bouwde. Hoe die gemaakt zijn, staat onder [De voorbeeldrun](#de-voorbeeldrun). De enige externe bron is Google Fonts. Het lege bestand `.nojekyll` staat er voor GitHub Pages.
 
 ## Tests
 
@@ -149,6 +149,14 @@ De tests staan in `tests/test_cp05_release.py` (de zip) en `tests/test_cp06_rele
 
 In de root van deze repo staat `LICENSE` met de MIT-licentie. Dat is ook het bestand dat als `buildflow/LICENSE` in de zip terechtkomt, dus wie de zip downloadt krijgt de licentie erbij.
 
+## Versies
+
+### v1.0.0, 29 september 2026
+
+De eerste release. `buildflow.zip` (151 kB) heeft bovenaan één map, `buildflow/`, met de skill zoals die op dat moment in de skillbron stond: `SKILL.md`, `README.md`, `pricing.json`, het viewersjabloon `assets/viewer.html`, `scripts/bf.py` en `scripts/gate_hook.py`, twaalf bestanden in `references/` en de MIT-licentie als `LICENSE`. Tegelijk ging de site live met de uitleg, de handleiding per fase, de installatie, de download, de vragen en de demorun in `voorbeeld/`.
+
+Na v1.0.0 is alleen de site veranderd, de zip niet. Er kwam een tweede voorbeeld bij, de run die deze site bouwde (`voorbeeld/deze-site/`), en `design.md` en het prototype zijn bijgewerkt naar wat er gebouwd is.
+
 ## De voorbeeldrun
 
 De map `voorbeeld/` laat zien wat buildflow oplevert, met bestanden uit een echte run van de skill. De demofeature is verzonnen: een donker thema voor een kleine demosite van een bakkerij, twee checkpoints groot. Het demoproject stond in een wegwerpmap buiten deze repo, zodat de run niets in deze repo aanraakte. Omdat de run een eigen sessie had, zijn de gemeten kosten alleen die van de demo.
@@ -178,12 +186,38 @@ Maak een nieuw demoproject buiten deze repo, met een eigen git-repo en een klein
 Het script schrijft alleen bestanden bij en overschrijft ze, maar gooit niets weg. Haal de oude voorbeeldrun dus eerst weg, anders blijven bestanden van de vorige run staan:
 
 ```
-rm -rf voorbeeld
+find voorbeeld -mindepth 1 -maxdepth 1 ! -name deze-site -exec rm -rf {} +
 python3 scripts/sanitize_demo.py <map met ruwe kopieën> voorbeeld/
 python3 -m unittest discover -s tests -v
 ```
 
+Gebruik hier geen `rm -rf voorbeeld`: dan gaat het tweede voorbeeld in `voorbeeld/deze-site/` ook weg.
+
 `tests/test_cp08_voorbeeld.py` test het script op een nepviewer: projectpaden worden het demopad en de ingebedde JSON blijft geldig, sessie-id's en e-mailadressen worden overal op dezelfde manier vervangen, de prototypelink wijst naar het meegekopieerde bestand, bedragen, tijden en testaantallen blijven gelijk, en een ontbrekende invoermap schrijft niets en laat een bestaande uitvoer staan. Dezelfde tests draaien ook met het projectpad in een tijdelijke map. Over de echte `voorbeeld/` controleert het bestand dat de vijf bestanden er zijn en uit één run komen, dat het prototype binnen `voorbeeld/` ligt en over http laadt, dat de privacyscan ook over `voorbeeld/` loopt en schoon is, dat elke lokale link bestaat en dat een bedrag bij `#voorbeeld` op de pagina ook echt in `final.html` staat. `tests/test_cp08_links.py` test de linkaanpassingen in het sjabloon, het icoon, de gecodeerde paden, sessielinks en retina-bestandsnamen, en de weigering bij binaire bestanden en png's waar nog iets persoonlijks in staat. De map met ruwe kopieën bevat persoonlijke gegevens; gooi hem weg als `voorbeeld/` klaar is.
+
+### Het tweede voorbeeld: de run die deze site bouwde
+
+`voorbeeld/deze-site/` komt uit de run van buildflow waarmee deze site gemaakt is, in `.buildflow/buildflow-website/` van deze repo (die map staat buiten git). Het is een momentopname van vlak na het laatste checkpoint: `viewer.html`, de tien checkpointrapporten in `reports/` en, zodat de designstap in de viewer laadt, `docs/design/design.md` en `docs/design/prototype/index.html`. Een eindrapport zit er niet bij. Dat schrijft `bf docs` pas na de documentatiegate, en die liep nog toen de momentopname gemaakt werd.
+
+De kosten in deze rapporten tellen alleen de sessie waarin de run liep, met de subagents daarvan; `window.BF.cost.sessions` bevat één sessie. De demorun hierboven draaide in een eigen sessie met `claude -p` en telt niet mee, net als het werk aan de skill zelf, dat in andere sessies gebeurde. De bedragen zijn niet aangepast.
+
+De `data.json` van de run gaat niet mee. De viewer haalt die over http elke vier seconden op en zou dan zijn eigen, schoongemaakte gegevens vervangen door die van de run, met links die naar de runmap wijzen. Het script zet er daarom `null` naast, net als bij het eerste voorbeeld.
+
+Vóór het script zijn in de map met ruwe kopieën een paar dingen met de hand vervangen, omdat het script ze niet kent of er (terecht) op weigert:
+
+- de naam van de private skill-repo wordt `[skill-repo]`;
+- de namen van de andere skills in die repo, twee commitregels van een andere skill en het pad naar een ander project worden een omschrijving;
+- tekst die de verboden patronen zelf noemt, zoals een testnaam die een pad onder Users of private/tmp als voorbeeld geeft, is herschreven zonder de slash ervoor;
+- in de kopie van het prototype wijzen de links naar `../../../../../` in plaats van `../../../`, zodat de screenshots en de voorbeeldbestanden vanuit `voorbeeld/deze-site/docs/design/prototype/` bij de echte bestanden van de site uitkomen.
+
+Daarna:
+
+```
+rm -rf voorbeeld/deze-site
+python3 scripts/sanitize_demo.py <map met ruwe kopieën> voorbeeld/deze-site
+```
+
+Het script vindt de `index.html` van de site ook één map hoger, dus "← Alle features" wijst hier naar `../../index.html#voorbeeld` en elke pagina krijgt het icoon van de site. Controleer na afloop zelf dat de naam van de skill-repo nergens staat, bijvoorbeeld met `git grep` op die naam en `BUILDFLOW_SKILL_REPO` gezet bij de tests; het script zoekt daar niet naar.
 
 ## Ontwerp
 

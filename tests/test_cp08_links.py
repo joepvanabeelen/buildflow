@@ -234,6 +234,18 @@ class SanitizeLinks(unittest.TestCase):
                 self.assertIn('href="viewer-plan.html">${L.back}', html,
                               "terugknop wijst niet naar de meest gevorderde viewer")
 
+    def test_run_in_submap_van_voorbeeld_vindt_de_site_een_map_hoger(self):
+        # Een tweede voorbeeld staat in voorbeeld/<run>/: index.html staat dan twee mappen hoger.
+        self.uitvoer = os.path.join(self.tmp, "site", "voorbeeld", "tweede-run")
+        self.draai_ok()
+        for naam in VIJF:
+            with self.subTest(naam=naam):
+                html = lees(os.path.join(self.uitvoer, naam))
+                self.assertIn('class="terug" href="../../index.html#voorbeeld"', html)
+                self.assertEqual(html.count(ICOON), 1)
+        proto = lees(os.path.join(self.uitvoer, *PROTO_REL.split("/")))
+        self.assertEqual(proto.count(ICOON), 1)
+
     def test_zonder_site_index_blijft_de_overzichtslink_staan(self):
         os.remove(os.path.join(self.tmp, "site", "index.html"))
         self.draai_ok()
@@ -283,12 +295,12 @@ class SanitizeLinks(unittest.TestCase):
         return uit
 
     def test_tmp_paden_file_urls_en_claude_mapnamen_gaan_eruit(self):
-        stukken = ["file:///tmp/claude-501/-Users-joepx-projects/scratch/a.txt",
-                   "/tmp/claude-501/-Users-joepx-projects-foo",
+        stukken = ["file:///tmp/claude-501/-Users-iemandx-projects/scratch/a.txt",
+                   "/tmp/claude-501/-Users-iemandx-projects-foo",
                    "file:///private/var/folders/ab/cd/T/b.txt",
-                   "file:///Users/joepx/Desktop/c.txt",
-                   "map -Users-joepx-projects-joep-demo-app los",
-                   "&sol;Users&sol;joepx&sol;d", "&#0047;tmp&#0047;claude-501&#0047;e",
+                   "file:///Users/iemandx/Desktop/c.txt",
+                   "map -Users-iemandx-projects-demo-app los",
+                   "&sol;Users&sol;iemandx&sol;d", "&#0047;tmp&#0047;claude-501&#0047;e",
                    "%2Ftmp%2Fclaude-501%2Ff"]
         schrijf(os.path.join(self.invoer, "notities.txt"), "\n".join(stukken) + "\n")
         pad = os.path.join(self.invoer, "viewer-brief.html")
@@ -297,7 +309,7 @@ class SanitizeLinks(unittest.TestCase):
         schrijf(pad, viewer_met_sjabloon(d))
         self.draai_ok()
         alles = self.alles_uit()
-        for verboden in (b"joepx", b"claude-501", b"-Users-", b"file:///tmp", b"&sol;Users"):
+        for verboden in (b"iemandx", b"claude-501", b"-Users-", b"file:///tmp", b"&sol;Users"):
             self.assertNotIn(verboden, alles)
         # De vervanging is ~ plus de gecodeerde slash; zonder ~ ervoor is het nog een echt pad.
         for verboden in (rb"(?<!~)&#0047;tmp", rb"(?<!~)%2Ftmp"):
@@ -330,7 +342,7 @@ class SanitizeLinks(unittest.TestCase):
 
     def test_weigert_binair_bestand_met_tmp_pad_of_gecodeerde_gebruikersmap(self):
         self.weigert("a.bin", b"\x00\xff/tmp/claude-501/x\x00")
-        self.weigert("b.bin", b"\x00\xff-Users-joepx-projects\x00")
+        self.weigert("b.bin", b"\x00\xff-Users-iemandx-projects\x00")
         url = b"https://claude.ai" + b"/code/"
         self.weigert("c.bin", b"\x00\xff" + url + b"session_01AbCdEfGhIj\x00")
 

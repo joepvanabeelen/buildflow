@@ -29,16 +29,17 @@ Wat het script doet:
 
 Links die de viewer zelf in JavaScript opbouwt, wijzen in een run naar bestanden die in een
 losse momentopname niet bestaan. Het script past daarom deze vaste stukken van het sjabloon aan:
-- "← Alle features" (rel_root + .buildflow/index.html) wijst naar ../index.html#voorbeeld, de
-  sectie op de site waar de voorbeeldrun staat. Alleen als die index.html naast de uitvoermap
-  staat; anders blijft de link zoals hij was;
+- "← Alle features" (rel_root + .buildflow/index.html) wijst naar index.html#voorbeeld van de
+  site, de sectie waar de voorbeeldruns staan. Het script zoekt die index.html naast de
+  uitvoermap (voorbeeld/) of één map hoger (voorbeeld/<run>/). Staat hij op geen van beide
+  plekken, dan blijft de link zoals hij was;
 - "Open volledige viewer" in een checkpointrapport (../viewer.html) wijst naar de meest
   gevorderde gewone viewer in de uitvoermap (hier viewer-plan.html);
 - documentatiebestanden in de lijst bij "Documentatie van de feature" die niet in de invoer
   zitten, worden gewone tekst in plaats van een link. Een momentopname heeft de README's van
   het demoproject niet; een link zou een 404 geven, de bestandsnaam zelf zegt nog wel iets.
-Staat er naast de uitvoermap een index.html met een <link rel="icon"> (de site zelf), dan
-krijgt elke meegekopieerde html-pagina zonder icoon dat icoon. Zo vraagt de browser niet om
+Heeft die index.html van de site een <link rel="icon">, dan krijgt elke meegekopieerde
+html-pagina zonder icoon dat icoon. Zo vraagt de browser niet om
 een /favicon.ico die er niet is.
 
 Na het schoonmaken zoekt het script de hele uitvoer nog eens na, ook binaire bestanden (en in
@@ -291,22 +292,25 @@ def bestaat(rel_viewer, doel, uitvoer_rels):
     return pad in uitvoer_rels
 
 
-def site_icoon(uitvoer):
-    """Het icoon van de site: de <link rel="icon"> uit index.html naast de uitvoermap."""
-    index = os.path.join(os.path.dirname(uitvoer), "index.html")
-    if not os.path.isfile(index):
-        return None, None
-    with open(index, encoding="utf-8") as f:
-        html = f.read()
-    m = ICOON.search(html)
-    return (m.group(0) if m else None), html
+def site_index(uitvoer):
+    """De index.html van de site naast de uitvoermap of één map hoger, als
+    (icoon of None, html, pad naar index.html relatief aan de uitvoermap), of (None, None, None)."""
+    boven = os.path.dirname(uitvoer)
+    for map_ in (boven, os.path.dirname(boven)):
+        index = os.path.join(map_, "index.html")
+        if os.path.isfile(index):
+            with open(index, encoding="utf-8") as f:
+                html = f.read()
+            m = ICOON.search(html)
+            return (m.group(0) if m else None), html, os.path.relpath(index, uitvoer)
+    return None, None, None
 
 
-def pas_sjabloon_aan(rel, html, data, uitvoer_rels, laatste_viewer, site_html):
+def pas_sjabloon_aan(rel, html, data, uitvoer_rels, laatste_viewer, site_html, site_rel):
     """Maakt de vaste links in het viewersjabloon werkend voor een momentopname."""
     diepte = "../" * rel.count(os.sep)
     if TERUG_ALLE in html and site_html is not None and 'id="voorbeeld"' in site_html:
-        html = html.replace(TERUG_ALLE, diepte + "../index.html#voorbeeld")
+        html = html.replace(TERUG_ALLE, diepte + site_rel.replace(os.sep, "/") + "#voorbeeld")
     if TERUG_VIEWER in html and laatste_viewer:
         html = html.replace(TERUG_VIEWER, f'href="{os.path.relpath(laatste_viewer, os.path.dirname(rel) or ".")}"')
     ontbreekt = [f for f in doc_bestanden(data)
@@ -369,7 +373,7 @@ def main(argv):
     gewoon = [(PHASE_IDX.get(d.get("phase"), 4), rel) for rel, (_, d, _) in viewers.items()
               if not d.get("focus")]
     laatste_viewer = max(gewoon)[1] if gewoon else None
-    icoon, site_html = site_icoon(uitvoer)
+    icoon, site_html, site_rel = site_index(uitvoer)
     for rel in bestanden:
         if rel in viewers:
             voor, data, na = viewers[rel]
@@ -377,7 +381,8 @@ def main(argv):
             data["rel_root"] = "../" * rel.count(os.sep)
             blob = json.dumps(data, ensure_ascii=False).replace("</", "<\\/")
             voor = zet_icoon(s.tekst(voor), icoon)
-            na = pas_sjabloon_aan(rel, s.tekst(na), data, alle_rels, laatste_viewer, site_html)
+            na = pas_sjabloon_aan(rel, s.tekst(na), data, alle_rels, laatste_viewer, site_html,
+                                  site_rel)
             uit[rel] = (voor + blob + na).encode("utf-8")
         else:
             tekst = als_tekst(inhoud[rel])
