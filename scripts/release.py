@@ -30,7 +30,7 @@ releases/latest/download/buildflow.zip en veranderen dus niet.
 --publish weigert tenzij je op main staat (de Pages-branch), de werkkopie schoon is en main
 na git fetch origin gelijk is aan origin/main. Het weigert ook als de versie al als tag
 (lokaal of op origin) of als GitHub Release bestaat. gh krijgt --repo mee met de repo waar
-origin naar wijst. Daarna bouwt het de zip, toont het welke commando's het gaat draaien en
+git naartoe pusht (git remote get-url --push origin). Daarna bouwt het de zip, toont het welke commando's het gaat draaien en
 gaat het alleen door als je de versie letterlijk intypt. Dan vult het index.html in, commit
 alleen die, maakt de tag, pusht beide en maakt de release met gh. Mislukt een stap of breek
 je af met Ctrl-C, dan meldt het wat gelukt is, welke commando's nog moeten en hoe je het
@@ -310,7 +310,9 @@ def controleer_werkkopie() -> str:
                           f"op {tak or 'een losse commit (detached HEAD)'}. "
                           f"Doe eerst git switch {PAGES_TAK}")
     controleer_schoon()
-    repo = github_repo(git_uitvoer(["git", "remote", "get-url", "origin"], "de URL van origin"))
+    # De push-URL, niet de fetch-URL: gh moet de repo gebruiken waar de tag heen gaat.
+    repo = github_repo(git_uitvoer(["git", "remote", "get-url", "--push", "origin"],
+                                   "de push-URL van origin"))
     git_uitvoer(["git", "fetch", "origin"], "de stand van origin (git fetch origin)")
     kop = git_uitvoer(["git", "rev-parse", "HEAD"], "HEAD")
     remote = git_uitvoer(["git", "rev-parse", f"refs/remotes/origin/{PAGES_TAK}"],
@@ -391,18 +393,26 @@ def herstelhulp(versie, repo, stappen, klaar, onderbroken) -> str:
     # Wat mogelijk al gebeurd is: bij een onderbreking telt de lopende stap mee.
     mogelijk = klaar + 1 if onderbroken else klaar
     regels.append("Terugdraaien:")
+    # Voor de push naar main is origin/main precies de stand van voor de release (dat is
+    # vooraf gecontroleerd). Reset daarnaartoe klopt dus ook als onbekend is of de commit
+    # gelukt is; HEAD~1 zou dan een commit weggooien die er al was.
     if mogelijk <= PUSH_TAK:
         if mogelijk > TAG:
             regels.append(f"  git tag -d {versie}")
         if mogelijk > COMMIT:
-            regels.append("  git reset --hard HEAD~1   (haalt de releasecommit weg; de "
-                          "werkkopie was schoon, dus er gaat niets anders verloren)")
+            regels.append(f"  git reset --hard origin/{PAGES_TAK}   (haalt de releasecommit "
+                          "weg als die er is; de werkkopie was schoon, dus er gaat niets "
+                          "anders verloren)")
         else:
             regels.append(f"  git checkout HEAD -- {INDEX}")
     else:
+        if klaar >= GH_RELEASE:
+            # Ook na een foutmelding kan gh de release al (half) gemaakt hebben.
+            regels.append(f"  kijk met gh release view {versie} --repo {repo} of de release "
+                          f"bestaat; zo ja: gh release delete {versie} --repo {repo} --yes")
         if onderbroken and klaar == PUSH_TAK:
             regels.append(f"  is de push naar origin/{PAGES_TAK} niet gelukt: git tag -d "
-                          f"{versie} en git reset --hard HEAD~1; anders:")
+                          f"{versie} en git reset --hard origin/{PAGES_TAK}; anders:")
         regels.append(f"  de releasecommit staat al op origin/{PAGES_TAK}; terugdraaien kan "
                       f"alleen met een nieuwe commit: git revert HEAD en "
                       f"git push origin {PAGES_TAK}")

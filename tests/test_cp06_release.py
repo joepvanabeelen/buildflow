@@ -73,9 +73,11 @@ elif cmd == "status":
     uit = os.environ.get("NEP_STATUS", "")
     if uit:
         print(uit)
-elif cmd == "remote" and rest[:2] == ["get-url", "origin"]:
-    print(os.environ.get("NEP_ORIGIN_URL",
-                         "git@github.com:joepvanabeelen/buildflow-website.git"))
+elif cmd == "remote" and rest[:1] == ["get-url"] and rest[-1:] == ["origin"]:
+    # fetch-URL (NEP_ORIGIN_URL) en push-URL (NEP_PUSH_URL, standaard gelijk aan de fetch-URL)
+    fetch = os.environ.get("NEP_ORIGIN_URL",
+                           "git@github.com:joepvanabeelen/buildflow-website.git")
+    print(os.environ.get("NEP_PUSH_URL", fetch) if "--push" in rest else fetch)
 elif cmd == "rev-parse":
     if rest == ["HEAD"]:
         print(os.environ.get("NEP_HEAD", "a" * 40))
@@ -454,7 +456,8 @@ class PublicerenMislukt(Cp06Basis):
         self.assertIn(f"git tag -a {VERSIE}", fouttekst)
         # terugdraaien: tag weg en commit weg (die is nog niet gepusht)
         self.assertIn(f"git tag -d {VERSIE}", fouttekst)
-        self.assertIn("git reset --hard HEAD~1", fouttekst)
+        # HEAD~1 of origin/main: vóór de push naar main zijn die hier gelijk (cp10)
+        self.assertRegex(fouttekst, r"git reset --hard (HEAD~1|origin/main)")
 
     def test_mislukte_tagpush_raadt_geen_reset_aan(self):
         uit = self.publiceer({"NEP_FAAL": f"git push origin {VERSIE}"})
