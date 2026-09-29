@@ -420,9 +420,12 @@ python3 .claude/skills/buildflow/scripts/bf.py doctor</code></pre></div>
   </details>
   <details class="ctx vraag">
     <summary>Hoe werk ik bij naar een nieuwe versie?</summary>
-    <div class="antwoord"><p>Haal de oude map weg en pak de nieuwe zip uit met hetzelfde commando als bij de installatie:</p>
+    <div class="antwoord"><p>Haal de oude map weg en pak de nieuwe zip uit op dezelfde plek als bij de installatie. Staat buildflow in je homemap, dan is dat:</p>
       <div class="code"><pre><code>rm -rf ~/.claude/skills/buildflow
 unzip -o buildflow.zip -d ~/.claude/skills</code></pre></div>
+      <p>Heb je hem in het project gezet, doe dan hetzelfde vanuit de map van je project en commit de nieuwe versie, zodat het hele team hem krijgt:</p>
+      <div class="code"><pre><code>rm -rf .claude/skills/buildflow
+unzip -o buildflow.zip -d .claude/skills</code></pre></div>
       <p>Je runs staan in <code>.buildflow/</code> in je project, niet in de skill, dus die blijven staan.</p></div>
   </details>
 </div></section>

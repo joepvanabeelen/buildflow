@@ -2,8 +2,6 @@
 
 Statische website voor de buildflow-skill (Claude Code): wat hij doet, hoe je hem gebruikt, installatie en download.
 
-De skill zelf staat in een aparte, private repo onder `skills/buildflow`.
-
 ## Lokaal bekijken
 
 Er is geen buildstap en er zijn geen dependencies. Start vanuit de root van de repo een simpele webserver en open daarna http://localhost:8765/ in je browser:
@@ -16,11 +14,41 @@ python3 -m http.server 8765
 
 De pagina is `index.html` in de root, met alle opmaak in `assets/site.css`. De enige externe bron is Google Fonts. Het lege bestand `.nojekyll` staat er voor GitHub Pages.
 
+## Tests
+
 De tests in `tests/` controleren onder meer dat de HTML klopt, dat elke ankerlink naar een bestaand id wijst en dat de bestanden waar de pagina naar verwijst bestaan. Ze gebruiken alleen de standaardbibliotheek van Python:
 
 ```
 python3 -m unittest discover -s tests -v
 ```
+
+Naast die basiscontroles zijn er drie inhoudelijke controles. De logica staat in drie scripts in `tests/`, de bijbehorende tests heten `test_cp04_*.py`.
+
+`check_copy.py` leest de tekst die een bezoeker te zien of te horen krijgt, inclusief `alt`, `title`, `aria-label`, de paginatitel en de beschrijvingen in `<meta>`, en zoekt naar woorden uit de vermijdlijsten `VERMIJD` (Nederlands) en `VERMIJD_EN` (Engels) in datzelfde script. Het telt ook de gedachtestreepjes; meer dan vijf op de hele pagina is een fout. Tekst binnen `<script>`, `<style>`, `<code>`, `<pre>`, `<template>` en `<noscript>` telt niet mee, HTML-commentaar ook niet.
+
+`check_privacy.py` doorzoekt alles wat GitHub Pages zou publiceren op persoonlijke paden (homemappen op macOS en Linux en de tijdelijke map van macOS), e-mailadressen en sessie-id's. Gepubliceerd betekent hier: alles wat git bijhoudt plus nieuwe bestanden die `.gitignore` niet uitsluit, behalve `.buildflow/` en `tests/`. Het script roept `git ls-files` aan, dus het werkt alleen in een git-checkout.
+
+`check_facts.py` leest de Stop-hook uit de frontmatter van `SKILL.md` en de minimale Python-versie uit de `README.md` van de skill. De tests in `test_cp04_feiten.py` vergelijken de pagina daarmee: de uitpak- en doctor-commando's bij Installeren, het blok voor installatie in één project, de FAQ over bijwerken, de volgorde waarin de pagina zegt dat de hook de twee installatieplekken probeert en de Python-versie die de pagina noemt.
+
+De eerste twee scripts kun je los draaien; ze printen `ok` of hun meldingen en eindigen met exitcode 1 als er iets gevonden is. `check_facts.py` los draaien vergelijkt niets, het laat alleen zien wat het uit de skill leest.
+
+```
+python3 tests/check_copy.py
+python3 tests/check_privacy.py
+python3 tests/check_facts.py
+```
+
+### De skillbron
+
+Voor de feitencontrole is een map nodig met de skill erin: `SKILL.md`, `README.md` en `scripts/`. Het pad naar die map komt uit de omgevingsvariabele `BUILDFLOW_SKILL_SRC`. Is die niet gezet, dan wordt `../skill-buildflow/skills/buildflow` gebruikt; dat is de afspraak voor wie de skill lokaal naast deze repo heeft staan. Een andere plek geef je zo op:
+
+```
+BUILDFLOW_SKILL_SRC=/pad/naar/buildflow python3 -m unittest discover -s tests -v
+```
+
+Zonder lokale kopie van de skill kun je, zodra er een release is, `buildflow.zip` van de Releases-pagina van deze repo downloaden, uitpakken en `BUILDFLOW_SKILL_SRC` op de uitgepakte map `buildflow` zetten.
+
+Vindt de test geen skillmap, dan draaien alle andere tests gewoon, maar de feitentests in `test_cp04_feiten.py` worden niet overgeslagen: ze falen met één fout die zegt welk pad gezocht is en naar deze sectie verwijst. De hele run eindigt dan dus als mislukt. `python3 tests/check_facts.py` geeft in dat geval dezelfde melding en eindigt met exitcode 1.
 
 ## Ontwerp
 
