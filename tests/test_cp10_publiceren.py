@@ -61,8 +61,9 @@ LIVE_REDEN = "BUILDFLOW_LIVE niet gezet; zet BUILDFLOW_LIVE=1 om tegen de live s
 NOREPLY_GITHUB = re.compile(r"\d+\+[A-Za-z0-9-]+@users\.noreply\.github\.com")
 EMAIL = dict(check_privacy.PATRONEN)["e-mailadres"]
 
-# Wat publiek mag: de site, de voorbeeldrun, de ontwerpdocs, de scripts en de tests.
-PUBLIEKE_MAPPEN = ("assets/", "voorbeeld/", "docs/design/", "scripts/", "tests/")
+# Wat publiek mag: de site, de voorbeeldrun, de ontwerpdocs, de scripts en de tests (branch
+# site), en de skill in buildflow/ (branch main). Wat per branch mag, toetst test_cp11_takken.
+PUBLIEKE_MAPPEN = ("assets/", "voorbeeld/", "docs/design/", "scripts/", "tests/", "buildflow/")
 PUBLIEKE_BESTANDEN = {"index.html", "LICENSE", "README.md", ".gitignore", ".nojekyll"}
 NOOIT = re.compile(r"(^|/)(\.buildflow|\.playwright-mcp|dist|__pycache__)(/|$)"
                    r"|(^|/)\.DS_Store$|\.pyc$")
@@ -696,14 +697,14 @@ class HerstelhulpCp06(cp06.Cp06Basis):
         self.assertIn(f"gh release delete {VERSIE} --repo {REPO_NAAM}", terug,
                       "de release kan al bestaan; terugdraaien moet gh release delete noemen")
 
-    def test_onderbroken_commit_raadt_reset_naar_origin_main_aan(self):
-        uit = self.publiceer({"NEP_ONDERBREEK": "git commit"})
+    def test_onderbroken_commit_raadt_reset_naar_origin_site_aan(self):
+        uit = self.publiceer({"NEP_ONDERBREEK": "git commit --allow-empty"})
         log = self.logtekst().splitlines()
-        self.assertTrue(log and log[-1].startswith("git commit"),
+        self.assertTrue(log and log[-1].startswith("git commit --allow-empty"),
                         f"na de onderbreking is toch doorgegaan: {log}")
         terug = self.terugdraaien(uit)
-        self.assertIn("git reset --hard origin/main", terug,
-                      "of de commit gelukt is, is onbekend; reset naar origin/main klopt "
+        self.assertIn("git reset --hard origin/site", terug,
+                      "of de commit gelukt is, is onbekend; reset naar origin/site klopt "
                       "in beide gevallen")
         self.assertNotIn("HEAD~1", terug,
                          "HEAD~1 gooit een commit weg die er al was als de releasecommit "
@@ -731,7 +732,8 @@ class HerstelhulpCp06(cp06.Cp06Basis):
         uit = self.release("--publish", invoer="ja\n")
         self.assertNotEqual(uit.returncode, 0)
         self.assertGeenTraceback(uit)
-        self.assertIn("git push origin main", uit.stdout)
+        self.assertIn("git push --atomic origin site " + "f" * 40 + ":refs/heads/main "
+                      f"refs/tags/{VERSIE}", uit.stdout)
         self.assertIn(f"git tag -a {VERSIE}", uit.stdout)
         self.assertIn(f"gh release create {VERSIE} dist/buildflow.zip", uit.stdout)
         self.assertEqual(cp06.schrijvende_aanroepen(self.logtekst()), [], self.logtekst())
@@ -807,11 +809,11 @@ class LiveBasis(unittest.TestCase):
 
 
 class LiveSite(LiveBasis):
-    def test_site_geeft_200_met_titel_en_releasewaarden_van_main(self):
+    def test_site_geeft_200_met_titel_en_releasewaarden_van_site(self):
         status, body = haal(LIVE_URL)
         self.assertEqual(status, 200)
         live_html = body.decode("utf-8")
-        lokaal = git("show", "main:index.html").decode("utf-8")
+        lokaal = git("show", "site:index.html").decode("utf-8")
         titel = re.search(r"<title>(.*?)</title>", lokaal, re.S).group(1)
         self.assertIn(titel, live_html)
         self.assertEqual(release_waarden(live_html), release_waarden(lokaal))
@@ -908,10 +910,10 @@ class LiveRepos(LiveBasis):
         uit = self.gh("repo", "view", skill_repo(self), "--json", "visibility")
         self.assertIn('"PRIVATE"', uit.replace(" ", ""))
 
-    def test_pages_serveert_main_vanuit_de_root(self):
+    def test_pages_serveert_site_vanuit_de_root(self):
         uit = self.gh("api", f"repos/{REPO_NAAM}/pages", "--jq",
                       ".source.branch + \" \" + .source.path")
-        self.assertEqual(uit.strip(), "main /")
+        self.assertEqual(uit.strip(), "site /")
 
 
 LIVE_KLASSEN = (LiveSite, LiveDownload, LiveHomeInstallatie, LiveProjectInstallatie, LiveRepos)

@@ -17,6 +17,7 @@ Gebruik:
     python3 scripts/release.py --dry-run [--src <skillmap>]
     python3 scripts/release.py --version vX.Y.Z [--date JJJJ-MM-DD] [--dry-run] [--src <skillmap>]
     python3 scripts/release.py --version vX.Y.Z --publish [--src <skillmap>]
+    python3 scripts/release.py --skill-branch NAAM [-m BERICHT] [--src <skillmap>]
 
 Zonder --src komt de skillmap uit BUILDFLOW_SKILL_SRC, en anders uit
 ../skill-buildflow/skills/buildflow naast deze repo. De skillmap wordt alleen gelezen.
@@ -27,14 +28,24 @@ de pagina blijft byte voor byte gelijk; nog een keer draaien verandert niets). -
 releasedatum vast, anders geldt vandaag. De downloadknoppen wijzen naar
 releases/latest/download/buildflow.zip en veranderen dus niet.
 
---publish weigert tenzij je op main staat (de Pages-branch), de werkkopie schoon is en main
-na git fetch origin gelijk is aan origin/main. Het weigert ook als de versie al als tag
-(lokaal of op origin) of als GitHub Release bestaat. gh krijgt --repo mee met de repo waar
-git naartoe pusht (git remote get-url --push origin). Daarna bouwt het de zip, toont het welke commando's het gaat draaien en
-gaat het alleen door als je de versie letterlijk intypt. Dan vult het index.html in, commit
-alleen die, maakt de tag, pusht beide en maakt de release met gh. Mislukt een stap of breek
-je af met Ctrl-C, dan meldt het wat gelukt is, welke commando's nog moeten en hoe je het
-terugdraait; hervatten doe je door die commando's met de hand te draaien.
+De repo heeft twee branches. site bevat de website (Pages serveert die vanuit de root) en
+dit script; main bevat alleen de skill: buildflow/ met precies de inhoud van de zip, plus
+README.md (uit scripts/README-main.md) en LICENSE. De releasetag staat op een commit van main,
+zodat de source-archieven die GitHub bij een release zet alleen de skill bevatten.
+
+--publish weigert tenzij je op site staat, de werkkopie schoon is en site na git fetch origin
+gelijk is aan origin/site. Het weigert ook als de versie al als tag (lokaal of op origin) of
+als GitHub Release bestaat. gh krijgt --repo mee met de repo waar git naartoe pusht (git
+remote get-url --push origin). Daarna bouwt het de zip en een skillcommit bovenop
+origin/main (alleen een commitobject, met een eigen tijdelijke index; geen branch verandert),
+toont het welke commando's het gaat draaien en gaat het alleen door als je de versie letterlijk
+intypt. Dan vult het index.html in, commit alleen die op site, zet de tag op de skillcommit,
+pusht site, main en de tag in één atomische push en maakt de release met gh. Mislukt een stap
+of breek je af met Ctrl-C, dan meldt het wat gelukt is, welke commando's nog moeten en hoe je
+het terugdraait; hervatten doe je door die commando's met de hand te draaien.
+
+--skill-branch NAAM [-m BERICHT] maakt lokaal een nieuwe branch met één commit zonder ouder
+met alleen de skill, bedoeld om main één keer om te zetten. Het pusht niets.
 """
 import argparse
 import datetime
@@ -67,7 +78,10 @@ VERPLICHTE_MAPPEN = {"references": ".md"}
 
 
 INDEX = "index.html"
-PAGES_TAK = "main"  # GitHub Pages publiceert vanaf deze branch
+PAGES_TAK = "site"  # GitHub Pages publiceert de website vanaf deze branch
+SKILL_TAK = "main"  # alleen de skill; de releasetag staat op een commit van deze branch
+# README van main; staat op site en gaat met de LICENSE mee in elke skillcommit.
+MAIN_README = Path("scripts") / "README-main.md"
 VERSIE_PATROON = re.compile(r"v\d+\.\d+\.\d+")
 MAANDEN = ["jan.", "feb.", "mrt.", "apr.", "mei", "jun.", "jul.", "aug.", "sep.", "okt.",
            "nov.", "dec."]
@@ -210,6 +224,44 @@ def bouw_zip(src: Path, license_pad: Path, doel: Path):
     return [naam for naam, _ in inhoud]
 
 
+def skillboom(namen_en_data, readme: bytes, licentie: bytes):
+    """Alle bestanden van een skillcommit op main: buildflow/ (zoals in de zip), README.md
+    en LICENSE, als (pad, bytes), gesorteerd."""
+    uit = [(f"{ZIP_MAP}/{naam}", data) for naam, data in namen_en_data]
+    uit += [("README.md", readme), ("LICENSE", licentie)]
+    return sorted(uit)
+
+
+def zip_inhoud(pad: Path):
+    with zipfile.ZipFile(pad) as z:
+        return [(i.filename[len(ZIP_MAP) + 1:], z.read(i)) for i in z.infolist()
+                if not i.is_dir()]
+
+
+def maak_skillcommit(bestanden, ouder, bericht: str) -> str:
+    """Schrijft een commit met precies deze bestanden en geeft de hash terug.
+
+    Werkt met een eigen tijdelijke index en werkmap: de werkkopie, de index en de branches
+    van de repo blijven ongemoeid. Er wordt alleen een commitobject gemaakt; ouder None
+    geeft een commit zonder ouder.
+    """
+    with tempfile.TemporaryDirectory(prefix="buildflow-skill-") as tmp:
+        werk = Path(tmp) / "boom"
+        for pad, data in bestanden:
+            doel = werk / pad
+            doel.parent.mkdir(parents=True, exist_ok=True)
+            doel.write_bytes(data)
+        env = {"GIT_INDEX_FILE": str(Path(tmp) / "index")}
+        # -f: globale ignore-regels mogen niets uit de skill weglaten
+        git_uitvoer(["git", f"--work-tree={werk}", "add", "-A", "-f", "."],
+                    "de inhoud van de skillcommit", env=env)
+        boom = git_uitvoer(["git", "write-tree"], "de boom van de skillcommit", env=env)
+        args = ["git", "commit-tree", boom, "-m", bericht]
+        if ouder:
+            args[3:3] = ["-p", ouder]
+        return git_uitvoer(args, "de skillcommit")
+
+
 def kies_src(arg):
     if arg:
         return Path(arg)
@@ -265,10 +317,11 @@ def schrijf_pagina(pad: Path, tekst: str) -> bool:
     return True
 
 
-def draai(args):
+def draai(args, env=None):
     try:
         return subprocess.run(args, cwd=REPO, capture_output=True, text=True,
-                              stdin=subprocess.DEVNULL)
+                              stdin=subprocess.DEVNULL,
+                              env=dict(os.environ, **env) if env else None)
     except OSError as e:
         raise ReleaseFout(f"kan {args[0]} niet starten ({e.strerror}); staat het op PATH?")
 
@@ -283,8 +336,8 @@ def github_repo(url: str) -> str:
     return f"{m.group(1)}/{m.group(2)}"
 
 
-def git_uitvoer(args, wat: str) -> str:
-    uit = draai(args)
+def git_uitvoer(args, wat: str, env=None) -> str:
+    uit = draai(args, env)
     if uit.returncode != 0:
         raise ReleaseFout(f"kan {wat} niet bepalen: "
                           f"{uit.stderr.strip() or ' '.join(args) + ' mislukte'}")
@@ -299,15 +352,16 @@ def controleer_schoon() -> None:
                           "releasecommit komen:\n" + status)
 
 
-def controleer_werkkopie() -> str:
-    """Weigert tenzij we op main staan, schoon, en gelijk met origin/main.
+def controleer_werkkopie():
+    """Weigert tenzij we op site staan, schoon, en gelijk met origin/site.
 
-    Geeft de GitHub-repo van origin terug ('eigenaar/naam'), die gh ook moet gebruiken.
+    Geeft de GitHub-repo van origin ('eigenaar/naam', die gh ook moet gebruiken) en de
+    commit van origin/main terug; de nieuwe skillcommit komt daar bovenop.
     """
     tak = git_uitvoer(["git", "branch", "--show-current"], "de huidige branch")
     if tak != PAGES_TAK:
-        raise ReleaseFout(f"publiceren kan alleen vanaf {PAGES_TAK} (de Pages-branch); je staat "
-                          f"op {tak or 'een losse commit (detached HEAD)'}. "
+        raise ReleaseFout(f"publiceren kan alleen vanaf {PAGES_TAK} (de branch van de website); "
+                          f"je staat op {tak or 'een losse commit (detached HEAD)'}. "
                           f"Doe eerst git switch {PAGES_TAK}")
     controleer_schoon()
     # De push-URL, niet de fetch-URL: gh moet de repo gebruiken waar de tag heen gaat.
@@ -321,7 +375,9 @@ def controleer_werkkopie() -> str:
         raise ReleaseFout(f"{PAGES_TAK} is niet gelijk aan origin/{PAGES_TAK} (HEAD {kop[:12]}, "
                           f"origin/{PAGES_TAK} {remote[:12]}); push of pull eerst, zodat de "
                           "release precies bevat wat op GitHub staat")
-    return repo
+    skill = git_uitvoer(["git", "rev-parse", f"refs/remotes/origin/{SKILL_TAK}"],
+                        f"origin/{SKILL_TAK}")
+    return repo, skill
 
 
 def controleer_nieuwe_versie(versie: str, repo: str) -> None:
@@ -349,16 +405,17 @@ def controleer_nieuwe_versie(versie: str, repo: str) -> None:
 
 
 # Indexen in publicatiestappen(); herstelhulp() rekent ermee.
-ADD, COMMIT, TAG, PUSH_TAK, PUSH_TAG, GH_RELEASE = range(6)
+ADD, COMMIT, TAG, PUSH, GH_RELEASE = range(5)
 
 
-def publicatiestappen(versie: str, repo: str):
+def publicatiestappen(versie: str, repo: str, skillcommit: str):
     return [
         ["git", "add", INDEX],
         ["git", "commit", "--allow-empty", "-m", f"Release {versie}", "--", INDEX],
-        ["git", "tag", "-a", versie, "-m", f"buildflow {versie}"],
-        ["git", "push", "origin", PAGES_TAK],
-        ["git", "push", "origin", versie],
+        ["git", "tag", "-a", versie, "-m", f"buildflow {versie}", skillcommit],
+        # Atomisch: site, main en de tag komen samen op origin, of geen van drieën.
+        ["git", "push", "--atomic", "origin", PAGES_TAK,
+         f"{skillcommit}:refs/heads/{SKILL_TAK}", f"refs/tags/{versie}"],
         ["gh", "release", "create", versie, ZIP_PAD.as_posix(), "--repo", repo, "--verify-tag",
          "--title", f"buildflow {versie}",
          "--notes", f"buildflow {versie}. Pak buildflow.zip uit in ~/.claude/skills."],
@@ -369,11 +426,12 @@ def als_commando(args) -> str:
     return " ".join(shlex.quote(a) for a in args)
 
 
-def herstelhulp(versie, repo, stappen, klaar, onderbroken) -> str:
+def herstelhulp(versie, repo, stappen, klaar, onderbroken, oude_main) -> str:
     """Tekst na een mislukte of onderbroken publicatie.
 
     klaar: aantal stappen dat zeker gelukt is. onderbroken: True als stap `klaar` midden in
-    het draaien is afgebroken, zodat niet zeker is of die gelukt is.
+    het draaien is afgebroken, zodat niet zeker is of die gelukt is. oude_main: de commit
+    van origin/main van voor de release.
     """
     regels = []
     if klaar:
@@ -385,18 +443,19 @@ def herstelhulp(versie, repo, stappen, klaar, onderbroken) -> str:
     if onderbroken:
         regels.append(f"Onderbroken tijdens: {als_commando(stappen[klaar])}. Of die stap nog "
                       "gelukt is weet ik niet; kijk dat na met git log -1 --oneline, "
-                      f"git tag --list {versie}, git ls-remote origin {PAGES_TAK} {versie} en "
-                      f"gh release view {versie} --repo {repo}.")
+                      f"git tag --list {versie}, git ls-remote origin {PAGES_TAK} "
+                      f"{SKILL_TAK} {versie} en gh release view {versie} --repo {repo}.")
     regels.append("Nog te doen (in deze volgorde, sla over wat al gelukt blijkt):")
     regels += ["  " + als_commando(s) for s in stappen[klaar:]]
 
     # Wat mogelijk al gebeurd is: bij een onderbreking telt de lopende stap mee.
     mogelijk = klaar + 1 if onderbroken else klaar
     regels.append("Terugdraaien:")
-    # Voor de push naar main is origin/main precies de stand van voor de release (dat is
-    # vooraf gecontroleerd). Reset daarnaartoe klopt dus ook als onbekend is of de commit
-    # gelukt is; HEAD~1 zou dan een commit weggooien die er al was.
-    if mogelijk <= PUSH_TAK:
+    # Voor de push is origin/site precies de stand van voor de release (dat is vooraf
+    # gecontroleerd). Reset daarnaartoe klopt dus ook als onbekend is of de commit gelukt
+    # is; HEAD~1 zou dan een commit weggooien die er al was. De skillcommit hangt aan geen
+    # enkele lokale branch, dus die hoeft niet weg.
+    if mogelijk <= PUSH:
         if mogelijk > TAG:
             regels.append(f"  git tag -d {versie}")
         if mogelijk > COMMIT:
@@ -410,23 +469,27 @@ def herstelhulp(versie, repo, stappen, klaar, onderbroken) -> str:
             # Ook na een foutmelding kan gh de release al (half) gemaakt hebben.
             regels.append(f"  kijk met gh release view {versie} --repo {repo} of de release "
                           f"bestaat; zo ja: gh release delete {versie} --repo {repo} --yes")
-        if onderbroken and klaar == PUSH_TAK:
-            regels.append(f"  is de push naar origin/{PAGES_TAK} niet gelukt: git tag -d "
-                          f"{versie} en git reset --hard origin/{PAGES_TAK}; anders:")
+        if onderbroken and klaar == PUSH:
+            regels.append(f"  is de push niet gelukt (de push is atomisch, dus dan staat er "
+                          f"niets op origin): git tag -d {versie} en git reset --hard "
+                          f"origin/{PAGES_TAK}; anders:")
         regels.append(f"  de releasecommit staat al op origin/{PAGES_TAK}; terugdraaien kan "
                       f"alleen met een nieuwe commit: git revert HEAD en "
                       f"git push origin {PAGES_TAK}")
-        if mogelijk > PUSH_TAG:
-            regels.append(f"  git push origin :refs/tags/{versie}")
+        regels.append(f"  zet {SKILL_TAK} terug: git push --force-with-lease origin "
+                      f"{oude_main}:refs/heads/{SKILL_TAK}")
+        regels.append(f"  git push origin :refs/tags/{versie}")
         regels.append(f"  git tag -d {versie}")
     return "\n".join(regels)
 
 
-def publiceer(versie, repo, pagina_pad, nieuwe_pagina, waarden) -> int:
-    stappen = publicatiestappen(versie, repo)
+def publiceer(versie, repo, pagina_pad, nieuwe_pagina, waarden, skillcommit, oude_main) -> int:
+    stappen = publicatiestappen(versie, repo, skillcommit)
     print(f"\nPlan voor {versie} (GitHub-repo {repo}):")
     print(f"  {INDEX} invullen: versie {waarden['versie']}, datum {waarden['datum']}, "
           f"grootte {waarden['grootte']}")
+    print(f"  skillcommit {skillcommit[:12]} op {SKILL_TAK} (bovenop origin/{SKILL_TAK} "
+          f"{oude_main[:12]}): {ZIP_MAP}/, README.md en LICENSE")
     for args in stappen:
         print("  " + als_commando(args))
     print(f"\nTyp {versie} om te publiceren (iets anders stopt zonder iets te doen): ",
@@ -450,14 +513,14 @@ def publiceer(versie, repo, pagina_pad, nieuwe_pagina, waarden) -> int:
                 print(uit.stdout.rstrip())
             if uit.returncode != 0:
                 return fout(f"stap mislukt: {als_commando(args)}\n{uit.stderr.strip()}\n"
-                            + herstelhulp(versie, repo, stappen, klaar, onderbroken=False))
+                            + herstelhulp(versie, repo, stappen, klaar, False, oude_main))
             klaar += 1
     except KeyboardInterrupt:
         print(file=sys.stderr)
         if klaar == 0 and pagina_pad.read_bytes() != nieuwe_pagina.encode("utf-8"):
             return fout("afgebroken voordat er iets veranderd is; er is niets gepubliceerd")
         return fout("afgebroken tijdens het publiceren\n"
-                    + herstelhulp(versie, repo, stappen, klaar, onderbroken=True))
+                    + herstelhulp(versie, repo, stappen, klaar, True, oude_main))
     print(f"{versie} is gepubliceerd")
     return 0
 
@@ -471,6 +534,42 @@ def lees_datum(tekst):
         return datetime.date.fromisoformat(tekst)
     except ValueError:
         raise ReleaseFout(f"--date is geen bestaande datum: {tekst}") from None
+
+
+def lees_main_readme() -> bytes:
+    pad = REPO / MAIN_README
+    if not pad.is_file():
+        raise ReleaseFout(f"{MAIN_README} ontbreekt; dat wordt de README van {SKILL_TAK}")
+    return pad.read_bytes()
+
+
+def maak_skill_branch(args) -> int:
+    naam = args.skill_branch
+    try:
+        if not re.fullmatch(r"[\w][\w./-]*", naam) or draai(
+                ["git", "check-ref-format", "--branch", naam]).returncode != 0:
+            return fout(f"ongeldige branchnaam: {naam!r}")
+        if draai(["git", "rev-parse", "--verify", "--quiet",
+                  f"refs/heads/{naam}"]).returncode == 0:
+            return fout(f"branch {naam} bestaat al; kies een andere naam of verwijder hem eerst")
+        src = kies_src(args.src)
+        if not src.is_dir():
+            return fout(f"skillmap bestaat niet: {src}")
+        license_pad = REPO / "LICENSE"
+        readme = lees_main_readme()
+        bouw_zip(src, license_pad, REPO / ZIP_PAD)
+        commit = maak_skillcommit(
+            skillboom(zip_inhoud(REPO / ZIP_PAD), readme, license_pad.read_bytes()),
+            None, args.message)
+        # Oude waarde leeg: faalt als de branch intussen toch bestaat.
+        git_uitvoer(["git", "update-ref", f"refs/heads/{naam}", commit, ""],
+                    f"de branch {naam}")
+        print(f"branch {naam} gemaakt op {commit[:12]} (alleen de skill; niets gepusht)")
+        return 0
+    except (BronFout, ReleaseFout) as e:
+        return fout(str(e))
+    except OSError as e:
+        return fout(f"onverwachte fout: {e}")
 
 
 def main(argv=None) -> int:
@@ -487,7 +586,17 @@ def main(argv=None) -> int:
                              "Release maken")
     parser.add_argument("--src", help="skillmap (standaard BUILDFLOW_SKILL_SRC of "
                                       "../skill-buildflow/skills/buildflow)")
+    parser.add_argument("--skill-branch", metavar="NAAM",
+                        help="maak lokaal een nieuwe branch NAAM met één commit zonder ouder "
+                             "die alleen de skill bevat (buildflow/, README.md, LICENSE); "
+                             "pusht niets")
+    parser.add_argument("-m", "--message", default="buildflow: alleen de skill",
+                        help="commitbericht voor --skill-branch")
     args = parser.parse_args(argv)
+    if args.skill_branch is not None:
+        if args.publish or args.version:
+            return fout("--skill-branch gaat niet samen met --version of --publish")
+        return maak_skill_branch(args)
 
     if args.publish and args.dry_run:
         return fout("--publish en --dry-run gaan niet samen")
@@ -512,10 +621,11 @@ def main(argv=None) -> int:
         pagina_pad = REPO / INDEX
         if args.version and not pagina_pad.is_file():
             return fout(f"{INDEX} ontbreekt in de repo-root: {pagina_pad}")
-        repo = None
+        repo = oude_main = None
         if args.publish:
-            repo = controleer_werkkopie()
+            repo, oude_main = controleer_werkkopie()
             controleer_nieuwe_versie(args.version, repo)
+            readme = lees_main_readme()
 
         namen = bouw_zip(src, license_pad, REPO / ZIP_PAD)
         grootte = (REPO / ZIP_PAD).stat().st_size
@@ -528,7 +638,11 @@ def main(argv=None) -> int:
         waarden = {"versie": args.version, "datum": nl_datum(dag), "grootte": kb(grootte)}
         nieuwe_pagina = vul_pagina_in(pagina_pad.read_bytes().decode("utf-8"), waarden)
         if args.publish:
-            return publiceer(args.version, repo, pagina_pad, nieuwe_pagina, waarden)
+            skillcommit = maak_skillcommit(
+                skillboom(zip_inhoud(REPO / ZIP_PAD), readme, license_pad.read_bytes()),
+                oude_main, f"Release {args.version}")
+            return publiceer(args.version, repo, pagina_pad, nieuwe_pagina, waarden,
+                             skillcommit, oude_main)
         veranderd = schrijf_pagina(pagina_pad, nieuwe_pagina)
         print(f"{INDEX}: versie {waarden['versie']}, datum {waarden['datum']}, "
               f"grootte {waarden['grootte']}"

@@ -36,7 +36,7 @@ DOWNLOAD = "https://github.com/joepvanabeelen/buildflow/releases/latest/download
 
 # Gedeeld stukje voor beide stubs: loggen, en een aanroep laten mislukken (NEP_FAAL) of
 # onderbreken alsof de gebruiker Ctrl-C drukt (NEP_ONDERBREEK). Beide zijn een stuk tekst
-# dat aan het begin van de gelogde regel moet staan, bv. "git push origin main".
+# dat aan het begin van de gelogde regel moet staan, bv. "git push --atomic origin site".
 STUB_KOP = r'''#!{python}
 import fnmatch, os, signal, sys, time
 args = sys.argv[1:]
@@ -54,7 +54,9 @@ if stop and regel.startswith(stop):
     sys.exit(130)
 '''
 
-# Standaard: op main, schone werkkopie, HEAD gelijk aan origin/main, origin op GitHub.
+# Standaard: op site, schone werkkopie, HEAD gelijk aan origin/site, origin op GitHub.
+# origin/main (alleen de skill) staat op een andere commit; write-tree en commit-tree geven
+# vaste nephashes, zodat de skillcommit herkenbaar is in het log.
 GIT_STUB = STUB_KOP + r'''
 tag = os.environ.get("NEP_BESTAANDE_TAG", "")
 cmd, rest = (args[0], args[1:]) if args else ("", [])
@@ -68,7 +70,11 @@ elif cmd == "ls-remote":
         sys.exit(0)
     sys.exit(2)
 elif cmd == "branch" and "--show-current" in rest:
-    print(os.environ.get("NEP_TAK", "main"))
+    print(os.environ.get("NEP_TAK", "site"))
+elif cmd == "write-tree":
+    print("e" * 40)
+elif cmd == "commit-tree":
+    print("f" * 40)
 elif cmd == "status":
     uit = os.environ.get("NEP_STATUS", "")
     if uit:
@@ -81,8 +87,10 @@ elif cmd == "remote" and rest[:1] == ["get-url"] and rest[-1:] == ["origin"]:
 elif cmd == "rev-parse":
     if rest == ["HEAD"]:
         print(os.environ.get("NEP_HEAD", "a" * 40))
+    elif rest == ["refs/remotes/origin/site"]:
+        print(os.environ.get("NEP_ORIGIN_SITE", "a" * 40))
     elif rest == ["refs/remotes/origin/main"]:
-        print(os.environ.get("NEP_ORIGIN_MAIN", "a" * 40))
+        print(os.environ.get("NEP_ORIGIN_MAIN", "d" * 40))
     else:
         print("onbekende rev-parse in stub: " + regel, file=sys.stderr)
         sys.exit(128)
@@ -99,6 +107,9 @@ if args[:2] == ["release", "view"]:
     sys.exit(1)
 sys.exit(0)
 '''
+
+# De ene push van een release: site, de skillcommit naar main en de tag, atomisch.
+PUSH = ("git push --atomic origin site " + "f" * 40 + ":refs/heads/main refs/tags/" + VERSIE)
 
 RELEASE_VELD = re.compile(r'(<(\w+)[^>]*\sdata-release="[^"]*"[^>]*>)(.*?)(</\2>)', re.S)
 
@@ -158,6 +169,9 @@ class Cp06Basis(cp05.ReleaseBasis):
         super().maak_repo()
         if not os.path.isfile(self.index):
             shutil.copy2(INDEX, self.index)
+        readme = os.path.join(self.repo, "scripts", "README-main.md")
+        if not os.path.isfile(readme) and not getattr(self, "zonder_main_readme", False):
+            shutil.copy2(os.path.join(ROOT, "scripts", "README-main.md"), readme)
 
     def draai(self, *args, env_extra=None, invoer=""):
         self.maak_repo()
@@ -370,10 +384,12 @@ class PublicerenVoorwaarden(Cp06Basis):
 
     def test_weigert_andere_branch(self):
         self.weigert_voor_vraag({"NEP_TAK": "buildflow/buildflow-website"},
-                                "main", "buildflow/buildflow-website")
+                                "site", "buildflow/buildflow-website")
 
     def test_weigert_detached_head(self):
-        self.weigert_voor_vraag({"NEP_TAK": ""}, "main", "detached")
+        self.weigert_voor_vraag({"NEP_TAK": ""}, "site", "detached")
+        # main is voortaan de skillbranch; publiceren vanaf main is fout
+        self.weigert_voor_vraag({"NEP_TAK": "main"}, "site", "main")
 
     def test_weigert_vuile_werkkopie(self):
         for status in (" M index.html", "?? notities.txt", "M  scripts/release.py"):
@@ -381,14 +397,14 @@ class PublicerenVoorwaarden(Cp06Basis):
                 self.weigert_voor_vraag({"NEP_STATUS": status}, status.split()[-1])
 
     def test_weigert_achter_of_voor_op_origin(self):
-        uit = self.weigert_voor_vraag({"NEP_ORIGIN_MAIN": "b" * 40}, "origin/main")
+        uit = self.weigert_voor_vraag({"NEP_ORIGIN_SITE": "b" * 40}, "origin/site")
         # eerst ophalen, dan pas vergelijken
         log = self.logtekst().splitlines()
         self.assertIn("git fetch origin", log)
         vergelijk = [i for i, r in enumerate(log) if r.startswith("git rev-parse")]
         self.assertTrue(vergelijk)
         self.assertLess(log.index("git fetch origin"), min(vergelijk), log)
-        self.weigert_voor_vraag({"NEP_HEAD": "c" * 40}, "origin/main")
+        self.weigert_voor_vraag({"NEP_HEAD": "c" * 40}, "origin/site")
 
     def test_weigert_als_fetch_mislukt(self):
         self.weigert_voor_vraag({"NEP_FAAL": "git fetch"}, "fetch")
@@ -443,32 +459,35 @@ class PublicerenMislukt(Cp06Basis):
         return log[log.index(faalregel) + 1:]
 
     def test_mislukte_push_stopt_en_geeft_rest_en_terugdraaien(self):
-        uit = self.publiceer({"NEP_FAAL": "git push origin main"})
-        self.assertEqual(self.na_de_fout(uit, "git push origin main"), [],
+        uit = self.publiceer({"NEP_FAAL": "git push --atomic origin site"})
+        self.assertEqual(self.na_de_fout(uit, PUSH), [],
                          "na de mislukte push is toch doorgegaan")
         fouttekst = uit.stderr
-        self.assertIn("git push origin main", fouttekst)
+        self.assertIn("git push --atomic origin site", fouttekst)
         # de overige stappen staan er als volledige commando's
-        self.assertIn(f"git push origin {VERSIE}", fouttekst)
+        self.assertIn(f"refs/tags/{VERSIE}", fouttekst)
         self.assertRegex(fouttekst, rf"gh release create {VERSIE} dist/buildflow.zip --repo "
                                     r"joepvanabeelen/buildflow .*--title")
         # gelukt: commit en tag
         self.assertIn(f"git tag -a {VERSIE}", fouttekst)
         # terugdraaien: tag weg en commit weg (die is nog niet gepusht)
         self.assertIn(f"git tag -d {VERSIE}", fouttekst)
-        # release.py raadt origin/main aan: dat klopt ook als onbekend is of de commit
+        # release.py raadt origin/site aan: dat klopt ook als onbekend is of de commit
         # gelukt is, HEAD~1 niet (cp10)
-        self.assertIn("git reset --hard origin/main", fouttekst)
+        self.assertIn("git reset --hard origin/site", fouttekst)
         self.assertNotIn("HEAD~1", fouttekst)
 
-    def test_mislukte_tagpush_raadt_geen_reset_aan(self):
-        uit = self.publiceer({"NEP_FAAL": f"git push origin {VERSIE}"})
-        self.assertEqual(self.na_de_fout(uit, f"git push origin {VERSIE}"), [])
-        self.assertIn(f"gh release create {VERSIE}", uit.stderr)
-        self.assertNotIn("reset --hard", uit.stderr,
+    def test_na_de_push_raadt_revert_en_main_terugzetten_aan(self):
+        uit = self.publiceer({"NEP_FAAL": "gh release create"})
+        terug = uit.stderr.split("Terugdraaien", 1)[1]
+        self.assertNotIn("reset --hard", terug,
                          "de commit staat al op origin; reset --hard is dan fout advies")
-        self.assertIn("git revert", uit.stderr)
-        self.assertIn(f"git tag -d {VERSIE}", uit.stderr)
+        self.assertIn("git revert", terug)
+        self.assertIn(f"git tag -d {VERSIE}", terug)
+        # main terug naar de commit van voor de release, alleen als niemand er intussen
+        # iets op zette
+        self.assertIn("git push --force-with-lease origin " + "d" * 40 + ":refs/heads/main",
+                      terug)
 
     def test_mislukte_gh_release_create(self):
         uit = self.publiceer({"NEP_FAAL": "gh release create"})
@@ -479,23 +498,24 @@ class PublicerenMislukt(Cp06Basis):
         self.assertNotIn("git push", te_doen, "al gepushte stappen staan bij nog te doen")
         self.assertNotIn("reset --hard", uit.stderr)
         self.assertIn(f"git push origin :refs/tags/{VERSIE}", uit.stderr)
+        self.assertNotIn("\n  git push", te_doen)
 
     def test_mislukte_commit_zet_alleen_de_pagina_terug(self):
-        uit = self.publiceer({"NEP_FAAL": "git commit"})
+        uit = self.publiceer({"NEP_FAAL": "git commit --allow-empty"})
         self.assertEqual(self.na_de_fout(uit, [r for r in self.logtekst().splitlines()
-                                               if r.startswith("git commit")][0]), [])
+                                               if r.startswith("git commit --")][0]), [])
         self.assertIn("git checkout HEAD -- index.html", uit.stderr)
         self.assertNotIn("git tag -d", uit.stderr)
         self.assertNotIn("reset --hard", uit.stderr)
 
     def test_onderbreking_meldt_de_echte_stand(self):
-        uit = self.publiceer({"NEP_ONDERBREEK": "git push origin main"})
-        self.assertEqual(self.na_de_fout(uit, "git push origin main"), [],
+        uit = self.publiceer({"NEP_ONDERBREEK": "git push --atomic origin site"})
+        self.assertEqual(self.na_de_fout(uit, PUSH), [],
                          "na Ctrl-C is toch doorgegaan")
         self.assertNotIn("niets gepubliceerd", uit.stderr,
                          "na commit en tag is 'niets gepubliceerd' niet waar")
         self.assertRegex(uit.stderr, r"(?i)onderbroken|afgebroken")
-        self.assertIn("git push origin main", uit.stderr.split("Nog te doen", 1)[1])
+        self.assertIn("git push --atomic origin site", uit.stderr.split("Nog te doen", 1)[1])
         self.assertIn(f"gh release create {VERSIE}", uit.stderr)
         self.assertIn(f"git tag -d {VERSIE}", uit.stderr)
 
