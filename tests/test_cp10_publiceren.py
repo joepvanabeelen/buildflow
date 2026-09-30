@@ -820,11 +820,13 @@ class LiveSite(LiveBasis):
         self.assertNotIn("volgt", [w for _, w in release_waarden(live_html)],
                          "datum of grootte is niet ingevuld")
         # Elke waarde op de live pagina hoort bij de echte release op GitHub.
-        echt = dict(echte_release())
+        # De versie op site:index.html is de release waar de pagina bij hoort.
+        versie = dict(release_waarden(lokaal))["versie"]
+        echt = dict(echte_release(versie))
         for soort, waarde in release_waarden(live_html):
             with self.subTest(soort=soort):
                 self.assertEqual(waarde, echt[soort],
-                                 f"{soort} op de live pagina wijkt af van release {VERSIE}")
+                                 f"{soort} op de live pagina wijkt af van release {versie}")
         self.assertEqual({s for s, _ in release_waarden(live_html)}, set(echt),
                          "de live pagina toont niet alle releasewaarden")
 

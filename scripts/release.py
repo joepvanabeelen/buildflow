@@ -377,6 +377,16 @@ def controleer_werkkopie():
                           "release precies bevat wat op GitHub staat")
     skill = git_uitvoer(["git", "rev-parse", f"refs/remotes/origin/{SKILL_TAK}"],
                         f"origin/{SKILL_TAK}")
+    # Elk pad dat ooit in de geschiedenis van main stond: daar mag alleen de skill staan,
+    # anders komt de release bovenop de oude website.
+    paden = git_uitvoer(["git", "log", "--format=", "--name-only", "--no-renames", skill],
+                        f"de geschiedenis van origin/{SKILL_TAK}").splitlines()
+    buiten = sorted({p for p in paden if p.strip() and p not in ("README.md", "LICENSE")
+                     and not p.startswith(f"{ZIP_MAP}/")})
+    if buiten:
+        raise ReleaseFout(f"origin/{SKILL_TAK} bevat meer dan de skill ({', '.join(buiten[:5])}"
+                          f"{' ...' if len(buiten) > 5 else ''}); zet {SKILL_TAK} eerst om "
+                          "naar alleen de skill (zie --skill-branch in de README)")
     return repo, skill
 
 
@@ -476,8 +486,8 @@ def herstelhulp(versie, repo, stappen, klaar, onderbroken, oude_main) -> str:
         regels.append(f"  de releasecommit staat al op origin/{PAGES_TAK}; terugdraaien kan "
                       f"alleen met een nieuwe commit: git revert HEAD en "
                       f"git push origin {PAGES_TAK}")
-        regels.append(f"  zet {SKILL_TAK} terug: git push --force-with-lease origin "
-                      f"{oude_main}:refs/heads/{SKILL_TAK}")
+        regels.append(f"  zet {SKILL_TAK} terug: git push --force-with-lease={SKILL_TAK}:"
+                      f"{stappen[TAG][-1]} origin {oude_main}:refs/heads/{SKILL_TAK}")
         regels.append(f"  git push origin :refs/tags/{versie}")
         regels.append(f"  git tag -d {versie}")
     return "\n".join(regels)

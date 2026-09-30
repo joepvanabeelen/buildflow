@@ -71,6 +71,8 @@ elif cmd == "ls-remote":
     sys.exit(2)
 elif cmd == "branch" and "--show-current" in rest:
     print(os.environ.get("NEP_TAK", "site"))
+elif cmd == "log" and "--name-only" in rest:
+    print(os.environ.get("NEP_MAIN_PADEN", "README.md\nLICENSE\nbuildflow/SKILL.md"))
 elif cmd == "write-tree":
     print("e" * 40)
 elif cmd == "commit-tree":
@@ -486,8 +488,8 @@ class PublicerenMislukt(Cp06Basis):
         self.assertIn(f"git tag -d {VERSIE}", terug)
         # main terug naar de commit van voor de release, alleen als niemand er intussen
         # iets op zette
-        self.assertIn("git push --force-with-lease origin " + "d" * 40 + ":refs/heads/main",
-                      terug)
+        self.assertIn("git push --force-with-lease=main:" + "f" * 40 + " origin " + "d" * 40
+                      + ":refs/heads/main", terug)
 
     def test_mislukte_gh_release_create(self):
         uit = self.publiceer({"NEP_FAAL": "gh release create"})

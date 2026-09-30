@@ -191,6 +191,15 @@ class PublicerenNaarTweeBranches(cp06.Cp06Basis):
         self.assertIn(f"skillcommit {SKILLCOMMIT[:12]} op main", uit.stdout)
         self.assertEqual(cp06.schrijvende_aanroepen(self.logtekst()), [], self.logtekst())
 
+    def test_weigert_als_origin_main_nog_de_website_bevat(self):
+        uit = self.release("--publish", invoer=VERSIE + "\n",
+                           env_extra={"NEP_MAIN_PADEN": "buildflow/SKILL.md\nindex.html"})
+        self.assertNotEqual(uit.returncode, 0)
+        self.assertIn("index.html", uit.stderr)
+        self.assertIn("origin/main", uit.stderr)
+        self.assertNotIn(f"Typ {VERSIE}", uit.stdout)
+        self.assertEqual(cp06.schrijvende_aanroepen(self.logtekst()), [])
+
     def test_zonder_readme_voor_main_weigert_het_voor_de_vraag(self):
         self.zonder_main_readme = True
         uit = self.release("--publish", invoer=VERSIE + "\n")
