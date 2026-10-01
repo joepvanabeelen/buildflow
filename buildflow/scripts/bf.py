@@ -43,6 +43,7 @@ SCRATCH_DIR = ".buildflow"
 CONTEXT_KEY_FILES = re.compile(r"(^|/)(CLAUDE|AGENTS|README|CONTRIBUTING|DESIGN|design)\.md$|(^|/)(package\.json|pyproject\.toml|"
                                r"composer\.json|Gemfile|go\.mod|Cargo\.toml|tsconfig\.json|docker-compose\.ya?ml)$|(^|/)docs/")
 TAG_RE = re.compile(r"^\s*bf:([a-z0-9_-]+):([a-z0-9_-]+)", re.I)
+CONTEXT_WORD_SOFT_LIMIT = 700
 
 
 # ---------------------------------------------------------------- language of everything a human reads
@@ -136,10 +137,15 @@ def profile_of(st):
     return st.get("profile") if st.get("profile") in PROFILES else "thorough"
 
 
+ECONOMICAL_ROLES = ("runner", "adversary")  # forced to sonnet on klein/middel/fast runs, see use_final_gates below
+
+
 def model_for(st, role, cp=None, gate=None):
     """(model, escalation note) for a subagent role in this run's profile."""
     prof = profile_of(st)
     model = PROFILE_MODELS[prof].get(role, PROFILE_DEFAULT_MODEL[prof])
+    if role in ECONOMICAL_ROLES and st and (is_fast(st) or size_mode(st) in ("klein", "middel")):
+        model = "sonnet"
     g = gate or ESCALATE_GATE.get(role)
     if (model != INHERIT and cp is not None and role in ESCALATE_GATE and g in cp["gates"]
             and cp["gates"][g]["status"] not in GATE_DONE):
@@ -147,6 +153,48 @@ def model_for(st, role, cp=None, gate=None):
         if fails >= ESCALATE_AFTER:
             return INHERIT, t("model_escalated", st, cp=cp["id"], n=fails, gate=name_of(GATE_NAMES, g, st))
     return model, ""
+
+
+SIZE_MODES = ("klein", "middel", "groot")
+FINAL_GATES = ["review", "ui", "docs"]  # gates run once over the whole feature diff, size klein/middel (or fast)
+
+
+def size_mode(st):
+    """`size` is a run-level fact set via `bf project size=...` (klein/middel/groot). Missing it keeps the
+    old behaviour: every checkpoint carries its own full set of gates (as if size were groot)."""
+    v = (st.get("project", {}) or {}).get("size")
+    return v if v in SIZE_MODES else "groot"
+
+
+def is_fast(st):
+    v = (st.get("project", {}) or {}).get("fast")
+    return str(v).strip().lower() in ("1", "true", "yes", "ja")
+
+
+def use_final_gates(st):
+    """Small/medium (or the fast route) run review, ui and docs once over the whole diff instead of per
+    checkpoint; new_checkpoint then only asks for behavior+static per checkpoint."""
+    return is_fast(st) or size_mode(st) in ("klein", "middel")
+
+
+def max_parallel_of(st):
+    try:
+        n = int((st.get("project", {}) or {}).get("max_parallel", 3))
+    except (TypeError, ValueError):
+        n = 3
+    return max(1, n)
+
+
+def get_final(st):
+    f = st.setdefault("final", {})
+    for g in FINAL_GATES:
+        f.setdefault(g, {"status": "pending", "attempts": []})
+    return f
+
+
+def final_done(st):
+    f = st.get("final") or {}
+    return all(f.get(g, {}).get("status") in GATE_DONE for g in FINAL_GATES)
 
 
 def model_label(m, st=None):
@@ -267,6 +315,12 @@ MSG = {
                   "Alle gates van {cp} zijn geslaagd: commit en draai `bf.py finish {cp}`."),
     "na_all_passed": ("All checkpoints passed: `bf.py phase awaiting_human_review`.",
                       "Alle checkpoints zijn geslaagd: `bf.py phase awaiting_human_review`."),
+    "na_final_open": ("All checkpoints passed; final gates still open: {gates} (`bf.py gate final "
+                     "<review|ui|docs> ...`), then `bf.py finish final`.",
+                     "Alle checkpoints zijn geslaagd; final-gates nog open: {gates} (`bf.py gate final "
+                     "<review|ui|docs> ...`), dan `bf.py finish final`."),
+    "na_final_done": ("Final gates done: `bf.py finish final`, then `bf.py phase awaiting_human_review`.",
+                     "Final-gates klaar: `bf.py finish final`, dan `bf.py phase awaiting_human_review`."),
     "ow_docs": ("feature docs gate is {status}", "docs-gate van de feature staat op {status}"),
     "ow_cp": ("{cp} {title}: open gates {gates}", "{cp} {title}: open gates {gates}"),
     "ow_finish": ("(finish/commit)", "(afronden/commit)"),
@@ -565,6 +619,8 @@ MSG = {
     "bad_host": ("--allow-host / BUILDFLOW_ALLOW_HOSTS: '{raw}' is not an exact host name (like my-mac.tail1234.ts.net); wildcards are not accepted",
                  "--allow-host / BUILDFLOW_ALLOW_HOSTS: '{raw}' is geen exacte hostnaam (zoals my-mac.tail1234.ts.net); wildcards worden niet geaccepteerd"),
     "already_serving": ("already serving: {url} (pid {pid})", "draait al: {url} (pid {pid})"),
+    "server_stopped": ("stopped server (pid {pid})", "server gestopt (pid {pid})"),
+    "server_not_running": ("no server running for this run", "geen server actief voor deze run"),
     "also_allowed": ("also allowed: {hosts}", "ook toegestaan: {hosts}"),
     "host_not_allowed": ("note: the running server does not allow {hosts}; stop it (kill {pid}) and start `bf.py serve` again with --allow-host to add hosts",
                          "let op: de draaiende server staat {hosts} niet toe; stop hem (kill {pid}) en start `bf.py serve` opnieuw met --allow-host"),
@@ -609,8 +665,8 @@ MSG = {
     "sc_planned": ("planned", "gepland"), "sc_red": ("red confirmed", "rood bevestigd"),
     "sc_red_wrong": ("red, wrong reason", "rood, verkeerde reden"), "sc_green": ("green", "groen"),
     "md_tdd_totals_head": ("Test-first per checkpoint", "Test-first per checkpoint"),
-    "tdd_totals": ("{scen} of {planned} planned tests have a scenario · {new} new tests · red confirmed in {red} of {n} checkpoints",
-                   "{scen} van {planned} geplande tests hebben een scenario · {new} nieuwe tests · rood bevestigd in {red} van {n} checkpoints"),
+    "tdd_totals": ("{scen} of {planned} planned tests have a scenario · {new} new tests",
+                   "{scen} van {planned} geplande tests hebben een scenario · {new} nieuwe tests"),
     "md_tdd_head": ("| # | checkpoint | planned | scenarios | new tests | green |",
                     "| # | checkpoint | gepland | scenario's | nieuwe tests | groen |"),
     "static_not_run": ("not run (see Deterministic checks)", "niet gedraaid (zie Deterministische checks)"),
@@ -713,12 +769,179 @@ MSG = {
     "brief_context_head": ("Brief context for a new session — {title} ({slug})",
                           "Korte context voor een nieuwe sessie — {title} ({slug})"),
     "brief_context_no_run": ("no active run; nothing to summarise", "geen actieve run; niets samen te vatten"),
-    "parallel_max": ("already 2 checkpoints in progress ({cp} among them); finish one before starting another "
-                    "in parallel", "er lopen al 2 checkpoints tegelijk (waaronder {cp}); rond er een af voor je "
+    "parallel_max": ("already {n} checkpoint(s) in progress ({cp} among them); finish one before starting another "
+                    "in parallel", "er lopen al {n} checkpoint(s) tegelijk (waaronder {cp}); rond er een af voor je "
                     "een volgende parallel start"),
     "parallel_overlap": ("shares files with a checkpoint already in progress ({files}); build them in sequence "
                         "instead", "deelt bestanden met een checkpoint dat al loopt ({files}); bouw ze na elkaar"),
+    # ---------------------------------------------------------------- waves, final gates, help (branch slank)
+    "wave_depends": ("wave {w}: {cp} depends on {dep}, in the same wave; checkpoints in one wave may not depend "
+                    "on each other", "golf {w}: {cp} hangt af van {dep}, in dezelfde golf; checkpoints in één golf "
+                    "mogen niet van elkaar afhangen"),
+    "wave_overlap": ("wave {w}: {a} and {b} both touch {f}; checkpoints in one wave may not share files_hint",
+                    "golf {w}: {a} en {b} raken allebei {f}; checkpoints in één golf mogen geen bestanden delen"),
+    "wave_empty": ("no checkpoints in wave {w}", "geen checkpoints in golf {w}"),
+    "wave_none_pending": ("wave {w} has no pending checkpoints left", "golf {w} heeft geen openstaande checkpoints meer"),
+    "wave_max_parallel": ("wave {w} has {n} checkpoint(s) to start, more than max_parallel ({limit}) allows "
+                         "together with what is already running", "golf {w} heeft {n} checkpoint(s) om te starten, "
+                         "meer dan max_parallel ({limit}) toestaat samen met wat al loopt"),
+    "wave_started": ("wave {w} started: {ids}", "golf {w} gestart: {ids}"),
+    "start_cp_or_wave": ("give a checkpoint id or --wave N", "geef een checkpoint-id of --wave N"),
+    "finish_wave_order": ("{cp} is in the same wave as {earlier}, which is not finished yet; finish checkpoints "
+                         "in plan order within a wave so merges stay ordered", "{cp} zit in dezelfde golf als "
+                         "{earlier}, die nog niet is afgerond; rond checkpoints binnen een golf in planvolgorde af "
+                         "zodat merges op volgorde gaan"),
+    "cps_done_final_open": ("all checkpoints passed; the final gates (review, ui, docs) are still open",
+                           "alle checkpoints zijn geslaagd; de final-gates (review, ui, docs) staan nog open"),
+    "cp_finished": ("{cp} done: {title}", "{cp} klaar: {title}"),
+    "cp_findings_line": ("{n} finding(s), {open} still open", "{n} bevinding(en), {open} nog open"),
+    "skip_final_gate": ("covered once at the end by the final gate (`bf gate final`)",
+                       "wordt aan het eind in één keer gedekt door de final-gate (`bf gate final`)"),
+    "final_open": ("final gates still open: {gates}", "final-gates nog open: {gates}"),
+    "final_done": ("final gates done", "final-gates klaar"),
+    "final_gate_one_of": ("final gate must be one of: {gates}", "final-gate moet een van zijn: {gates}"),
+    "final_skip_reason": ("give a reason to skip a final gate", "geef een reden om een final-gate over te slaan"),
+    "final_blockers": ("final {gate} cannot pass: {n} open blocker/high findings; fix them or mark them wontfix "
+                      "with a reason", "final {gate} kan niet slagen: {n} open blocker/high-bevindingen; los ze op "
+                      "of markeer ze wontfix met een reden"),
+    "accept_final_open": ("the final gates are not done yet: {gates}", "de final-gates zijn nog niet klaar: {gates}"),
+    "ctx_too_long": ("context.md is {n} words, above the ~{limit}-word guideline; trim it to stack, test commands, "
+                    "conventions and where things live", "context.md is {n} woorden, boven de richtlijn van "
+                    "ongeveer {limit}; kort hem in tot stack, testcommando's, conventies en waar wat staat"),
+    "finish_no_test_metrics": ("{cp}: the behavior gate's metrics have no tests_total/tests_passed; the runner "
+                              "should always record those. The final report falls back to parsing the summary "
+                              "text, which is a weaker guess.",
+                              "{cp}: de metrics van de behavior-gate hebben geen tests_total/tests_passed; de "
+                              "runner moet die altijd vastleggen. Het eindrapport valt terug op de samenvattingstekst, "
+                              "en dat is een zwakkere gok."),
+    "prompt_feature_ctx_l": ("Feature context", "Feature-context"),
+    "prompt_filtered_l": ("filtered to this checkpoint's files", "gefilterd op de bestanden van deze checkpoint"),
+    "help_intro": ("commands (bf help <command> for details):", "commando's (bf help <command> voor details):"),
+    "help_unknown": ("unknown command: {cmd}", "onbekend commando: {cmd}"),
+    "help_plan": ("Loads the planner's checkpoints. Validates waves (no depends_on or files_hint overlap within "
+                "one wave) and warns when the gates don't match the project size.\n"
+                "Example: bf.py plan --data '[{\"id\": \"cp01\", \"title\": \"Login form\", "
+                "\"done_when\": [\"user can submit email+password\"], \"files_hint\": [\"src/login.py\"]}]'",
+                "Laadt de checkpoints van de planner. Valideert golven (geen depends_on of overlap in files_hint "
+                "binnen één golf) en waarschuwt als de gates niet bij de omvang van het project passen.\n"
+                "Voorbeeld: bf.py plan --data '[{\"id\": \"cp01\", \"title\": \"Inlogformulier\", "
+                "\"done_when\": [\"gebruiker kan e-mail+wachtwoord versturen\"], \"files_hint\": [\"src/login.py\"]}]'"),
+    "help_gate": ("Records a gate result for a checkpoint, or for the whole feature with `bf gate final "
+                "<review|ui|docs> ...` (size klein/middel or fast). A blocker/high finding always needs another "
+                "round; a medium needs one fix round.",
+                "Legt een gate-resultaat vast voor een checkpoint, of voor de hele feature met `bf gate final "
+                "<review|ui|docs> ...` (size klein/middel of fast). Een blocker/high-bevinding vraagt altijd om "
+                "een nieuwe ronde; een medium om één fixronde."),
+    "help_start": ("Starts a checkpoint, or with --wave N every pending checkpoint in that wave at once (up to "
+                 "max_parallel, each meant for its own git worktree).",
+                 "Start een checkpoint, of met --wave N alle openstaande checkpoints van die golf tegelijk (tot "
+                 "max_parallel, elk bedoeld voor een eigen git-worktree)."),
+    "help_finish": ("Closes a checkpoint once its gates are done and writes its report, or with `bf finish "
+                   "final` closes the final gates. Within a wave, checkpoints must finish in plan order.",
+                   "Rondt een checkpoint af zodra de gates klaar zijn en schrijft het rapport, of sluit met `bf "
+                   "finish final` de final-gates af. Binnen een golf moeten checkpoints in planvolgorde afronden."),
+    "help_accept": ("Closes the run once every checkpoint has passed — and, at size klein/middel or fast, once "
+                   "the final gates are done too.",
+                   "Sluit de run af zodra alle checkpoints geslaagd zijn — en, bij size klein/middel of fast, ook "
+                   "de final-gates klaar zijn."),
+    "help_prompt": ("Composes a subagent's whole prompt and writes it to .buildflow/<slug>/prompts/. With --cp it "
+                   "keeps only the context-feature.md sections whose path matches the checkpoint's files_hint.",
+                   "Stelt het hele prompt van een subagent samen en schrijft het naar .buildflow/<slug>/prompts/. "
+                   "Met --cp blijven alleen de secties van context-feature.md over waarvan het pad bij de "
+                   "files_hint van de checkpoint past."),
+    "help_init": ("Starts a new run: title, slug, language, mode and model profile. --park pauses an unfinished "
+                 "run first.", "Start een nieuwe run: titel, slug, taal, modus en modelprofiel. --park pauzeert "
+                 "eerst een onafgeronde run."),
+    "help_runs": ("Lists every run (feature) in this project and rewrites .buildflow/index.html.",
+                "Toont alle runs (features) in dit project en herschrijft .buildflow/index.html."),
+    "help_use": ("Switches the active run to another slug.", "Wisselt de actieve run naar een andere slug."),
+    "help_session": ("Registers (or shows) the Claude Code session id used to measure cost from transcripts.",
+                    "Legt het Claude Code session-id vast (of toont het), gebruikt om kosten uit transcripten te meten."),
+    "help_context": ("Records the project and feature context files, or --check reports whether they are "
+                    "missing, stale or fresh.", "Legt de project- en feature-contextbestanden vast, of --check "
+                    "meldt of ze ontbreken, verouderd of vers zijn."),
+    "help_brief": ("Records the brief. --given means the user supplied a finished spec (counts as approval); "
+                  "without it the brief waits for approval.", "Legt de brief vast. --given betekent dat de "
+                  "gebruiker een kant-en-klare spec aanleverde (telt als akkoord); zonder --given wacht de brief "
+                  "op akkoord."),
+    "help_design": ("needed/not-needed decides whether a design stage runs; review records a design-review "
+                   "attempt; ready records the finished design.md/prototype.",
+                   "needed/not-needed bepaalt of er een designfase komt; review legt een designreview-poging "
+                   "vast; ready legt het afgeronde design.md/prototype vast."),
+    "help_project": ("Sets project facts as key=value pairs: test_command, dev_command, dev_url, size "
+                    "(klein/middel/groot), fast, max_parallel, design_ref, ...",
+                    "Zet projectfeiten als key=value: test_command, dev_command, dev_url, size "
+                    "(klein/middel/groot), fast, max_parallel, design_ref, ..."),
+    "help_tests": ("Attaches the test plan {cpNN: [tests]} to the checkpoints.\n"
+                 "Example: bf.py tests --data '{\"cp01\": [{\"scenario\": \"given valid login, when submitted, "
+                 "then redirected\", \"done_when_refs\": [1]}]}'",
+                 "Hangt het testplan {cpNN: [tests]} aan de checkpoints.\n"
+                 "Voorbeeld: bf.py tests --data '{\"cp01\": [{\"scenario\": \"gegeven geldige login, wanneer "
+                 "verstuurd, dan doorgestuurd\", \"done_when_refs\": [1]}]}'"),
+    "help_phase": ("Sets the run's phase directly; normally `approve`, `start`, `gate` and `finish` move the "
+                  "phase for you.", "Zet de fase van de run rechtstreeks; normaal verplaatsen `approve`, `start`, "
+                  "`gate` en `finish` de fase al voor je."),
+    "help_approve": ("Approves whatever is waiting (brief, design or plan) and moves to the next phase.",
+                    "Keurt goed wat openstaat (brief, design of plan) en gaat naar de volgende fase."),
+    "help_static": ("detect/config set up the static checks; baseline records pre-existing findings on the "
+                   "whole tree; run checks one checkpoint; mark settles a finding as wontfix; show prints the "
+                   "last run.", "detect/config zetten de statische checks op; baseline legt bestaande bevindingen "
+                   "op de hele boom vast; run draait de checks voor één checkpoint; mark zet een bevinding op "
+                   "wontfix; show toont de laatste run."),
+    "help_feedback": ("Records human feedback after a run; --file/--data add new checkpoints from it.",
+                     "Legt menselijke feedback na een run vast; --file/--data voegen er nieuwe checkpoints uit toe."),
+    "help_learn": ("Appends a learning every later subagent must read. --project keeps it for future runs too.",
+                  "Voegt een learning toe die elke latere subagent moet lezen. --project bewaart hem ook voor "
+                  "toekomstige runs."),
+    "help_pause": ("Pauses the run with a reason; `bf resume` picks it back up.",
+                  "Pauzeert de run met een reden; `bf resume` pakt hem weer op."),
+    "help_resume": ("Ends a pause and settles interrupted gates: --running continues the attempt, --redo starts "
+                   "a fresh one ('all' for every interrupted gate).",
+                   "Beëindigt een pauze en handelt onderbroken gates af: --running zet de poging voort, --redo "
+                   "begint een nieuwe ('all' voor elke onderbroken gate)."),
+    "help_docs": ("Records the feature-level docs gate, after the last checkpoint (the groot/current-model "
+                 "route; size klein/middel uses `bf gate final docs` instead).",
+                 "Legt de docs-gate op featureniveau vast, na de laatste checkpoint (de route voor "
+                 "groot/huidig model; size klein/middel gebruikt in plaats daarvan `bf gate final docs`)."),
+    "help_interrupted": ("Records an interruption the Stop hook missed (crash, closed laptop); marks the "
+                        "running attempt so `bf resume` can settle it.",
+                        "Legt een onderbreking vast die de Stop-hook miste (crash, dichtgeklapte laptop); markeert "
+                        "de lopende poging zodat `bf resume` hem kan afhandelen."),
+    "help_status": ("The current phase, checkpoints, gates and next step. --json for the full state.",
+                   "De huidige fase, checkpoints, gates en volgende stap. --json voor de volledige state."),
+    "help_brief-context": ("~15 lines a new session can read instead of the whole state: phase, checkpoint, "
+                          "open gates, last decisions, next step.",
+                          "~15 regels die een nieuwe sessie kan lezen in plaats van de hele state: fase, "
+                          "checkpoint, open gates, laatste besluiten, volgende stap."),
+    "help_model": ("Shows which model each subagent role runs on in this run's profile; with a role, just that "
+                  "model (used as the Agent call's `model` field).", "Toont op welk model elke subagentrol draait "
+                  "in het profiel van deze run; met een rol alleen dat model (gebruikt als `model`-veld van de "
+                  "Agent-call)."),
+    "help_cost": ("Measures tokens, cost and time from the Claude Code transcripts of this run.",
+                 "Meet tokens, kosten en tijd uit de Claude Code-transcripten van deze run."),
+    "help_pricing": ("Shows pricing.json; --check compares it against the models in this run's transcripts; "
+                    "--set adds or updates a model; --verified records today as the verification date.",
+                    "Toont pricing.json; --check vergelijkt hem met de modellen in de transcripten van deze run; "
+                    "--set voegt een model toe of werkt het bij; --verified legt vandaag vast als verificatiedatum."),
+    "help_report": ("Writes (or rewrites) a report: a checkpoint id or 'final'.",
+                   "Schrijft (of herschrijft) een rapport: een checkpoint-id of 'final'."),
+    "help_viewer": ("Renders the viewer html from the current state. --open opens it; --cost refreshes cost "
+                   "numbers first.", "Rendert de viewer-html uit de huidige state. --open opent hem; --cost "
+                   "ververst eerst de kostencijfers."),
+    "help_serve": ("Serves the live viewer: live refresh plus approvals and feedback sent back from the browser.",
+                  "Serveert de live viewer: live ververst, met akkoorden en feedback vanuit de browser."),
+    "help_inbox": ("Lists actions sent from the live viewer (marks them read), or marks them handled.",
+                  "Toont acties die vanuit de live viewer zijn verstuurd (markeert ze als gelezen), of markeert "
+                  "ze als afgehandeld."),
+    "help_wait": ("Blocks until the viewer sends something; exits 3 on timeout. Run it in the background.",
+                 "Blokkeert tot de viewer iets stuurt; sluit af met code 3 bij een time-out. Draai hem op de achtergrond."),
+    "help_doctor": ("Checks the run's own setup for problems (symlinks, missing files, stale config).",
+                   "Controleert de opzet van de run zelf op problemen (symlinks, ontbrekende bestanden, "
+                   "verouderde config)."),
+    "help_help": ("This command.", "Dit commando."),
 }
+
+HELP_NOTES = {k[5:] for k in MSG if k.startswith("help_") and k not in ("help_intro", "help_unknown")}
 
 
 # ---------------------------------------------------------------- basics
@@ -951,10 +1174,15 @@ def norm_cp(cid):
 
 
 def new_checkpoint(n, raw, source="plan", st=None):
-    gates_needed = [g for g in raw.get("gates", CP_GATES) if g in CP_GATES]
+    default_gates = CP_GATES
+    if "gates" not in raw and st is not None and use_final_gates(st):
+        # small/medium: ui, review and docs run once at the end (`bf gate final ...`), not per checkpoint
+        default_gates = ["behavior", "static"]
+    gates_needed = [g for g in raw.get("gates", default_gates) if g in CP_GATES]
     if "behavior" not in gates_needed:
         gates_needed.insert(0, "behavior")
-    if "review" not in gates_needed:
+    final_trim = "gates" not in raw and st is not None and use_final_gates(st)
+    if "review" not in gates_needed and not final_trim:
         gates_needed.append("review")
     # deterministic checks are mandatory; only an explicit reason (no code changed) skips them
     if "static" not in gates_needed and not raw.get("static_skip_reason"):
@@ -968,7 +1196,8 @@ def new_checkpoint(n, raw, source="plan", st=None):
         gates[g] = {"status": "pending" if g in gates_needed else "skipped", "attempts": []}
         if g not in gates_needed:
             gates[g]["skip_reason"] = raw.get(f"{g}_skip_reason") or (
-                t("skip_docs_no_scope", st) if g == "docs" and no_docs_scope else t("skip_not_needed", st))
+                t("skip_final_gate", st) if final_trim and g in FINAL_GATES
+                else t("skip_docs_no_scope", st) if g == "docs" and no_docs_scope else t("skip_not_needed", st))
     return {
         "id": f"cp{n:02d}",
         "n": n,
@@ -981,6 +1210,7 @@ def new_checkpoint(n, raw, source="plan", st=None):
         "docs_scope": raw.get("docs_scope", ""),
         "depends_on": [norm_cp(x) for x in raw.get("depends_on", [])],
         "files_hint": raw.get("files_hint", []),
+        "wave": int(raw["wave"]) if raw.get("wave") is not None else None,
         "tests": [norm_test(x) for x in raw.get("tests", [])],
         "source": source,
         "status": "pending",
@@ -1441,6 +1671,16 @@ def git_changed_files(root, base):
     return sorted(f for f in files if not f.startswith(SCRATCH_DIR + "/") and os.path.isfile(os.path.join(root, f)))
 
 
+def git_ls_all(root):
+    """Every file git would show (tracked + untracked, minus .gitignore) for a whole-tree static run.
+    None outside git, so the caller falls back to the old "run the tool over the whole tree" behaviour."""
+    if git(root, "rev-parse", "--git-dir") is None:
+        return None
+    out = git(root, "ls-files", "-co", "--exclude-standard")
+    return sorted(f for f in (out or "").splitlines() if f and not f.startswith(SCRATCH_DIR + "/")
+                  and os.path.isfile(os.path.join(root, f)))
+
+
 def worktree_state(root):
     """Content id of the working tree (tracked + untracked, minus ignored), equal before and after a commit.
     Built in a copy of the index so the real one is never touched. None outside git."""
@@ -1501,9 +1741,17 @@ def run_static_check(root, chk, files, outdir, mode, default_timeout):
         return res, []
     variants = [cmd]
     if "{files}" in cmd:
-        whole = mode == "baseline" or chk.get("scope", "changed") == "all" or mine is None or len(mine) > STATIC_MAX_FILES
+        whole_scope = mode == "baseline" or chk.get("scope", "changed") == "all"
+        whole = whole_scope or mine is None or len(mine) > STATIC_MAX_FILES
         if whole:
-            variants = [cmd.replace("{files}", chk.get("all_arg", "."))]
+            # baseline / scope "all": skip what git ignores, instead of handing the tool "." and trusting
+            # it to respect .gitignore itself
+            ls = git_ls_all(root) if whole_scope else None
+            subset = [f for f in ls if not exts or f.endswith(exts)] if ls is not None else None
+            if subset:
+                variants = [cmd.replace("{files}", " ".join(shlex.quote(f) for f in subset))]
+            else:
+                variants = [cmd.replace("{files}", chk.get("all_arg", "."))]
         elif chk.get("per_file"):
             variants = [cmd.replace("{files}", shlex.quote(f)) for f in mine]
         else:
@@ -2038,6 +2286,13 @@ def _next_action(st):
                 return t("na_gate", st, cp=cp["id"], gate=g, gname=name_of(GATE_NAMES, g, st),
                          status=name_of(STATUS_NAMES, gs["status"], st))
         return t("na_finish", st, cp=cp["id"])
+    if use_final_gates(st):
+        f = get_final(st)
+        pend = [g for g in FINAL_GATES if f[g]["status"] not in GATE_DONE]
+        if pend:
+            return t("na_final_open", st, gates=", ".join(name_of(GATE_NAMES, g, st) for g in pend))
+        if not st.get("final_ended_at"):
+            return t("na_final_done", st)
     return t("na_all_passed", st)
 
 
@@ -2437,14 +2692,40 @@ def last_metrics(cp, gate):
     return {}
 
 
+TESTS_GROEN_RE = re.compile(r"(\d+)\s*/\s*(\d+)\s*groen", re.I)
+TESTS_GROEN_ONE_RE = re.compile(r"(\d+)\s*tests?\s*groen", re.I)
+TESTS_PASSING_RE = re.compile(r"(\d+)\s*/\s*(\d+)\s*(?:passing|green)", re.I)
+TESTS_PASSING_ONE_RE = re.compile(r"(\d+)\s*tests?\s*(?:passing|green)", re.I)
+
+
+def parse_tests_from_summary(summary):
+    """Fallback when an attempt's structured metrics have no tests_total/tests_passed: pull the counts
+    from the free-text `summary` (e.g. '277 tests groen', '48/48 groen', '48/48 passing')."""
+    s = str(summary or "")
+    for rx in (TESTS_GROEN_RE, TESTS_PASSING_RE):
+        m = rx.search(s)
+        if m:
+            return {"tests_passed": int(m.group(1)), "tests_total": int(m.group(2))}
+    for rx in (TESTS_GROEN_ONE_RE, TESTS_PASSING_ONE_RE):
+        m = rx.search(s)
+        if m:
+            n = int(m.group(1))
+            return {"tests_passed": n, "tests_total": n}
+    return {}
+
+
 def latest_test_metrics(cps):
-    """The behavior-gate metrics of the most recent test run across checkpoints (the whole suite as it stood
-    then), not summed across checkpoints: each run re-runs the growing suite, so a sum inflates hugely."""
+    """The behavior-gate metrics of the most recent test run across ALL checkpoints (the whole suite as it
+    stood then), not summed across checkpoints: each run re-runs the growing suite, so a sum inflates hugely.
+    Checkpoints created from feedback count too. Takes the attempt that ended most recently, even when its
+    structured metrics lack tests_total/tests_passed: those are then read from its `summary` text."""
     best, best_at = {}, ""
     for cp in cps:
         for a in reversed(cp["gates"]["behavior"]["attempts"]):
-            m = a.get("metrics")
-            if m and m.get("tests_total") is not None:
+            m = dict(a.get("metrics") or {})
+            if m.get("tests_total") is None:
+                m.update({k: v for k, v in parse_tests_from_summary(a.get("summary")).items() if k not in m or m[k] is None})
+            if m.get("tests_total") is not None:
                 at = a.get("ended_at") or a.get("started_at") or ""
                 if at >= best_at:
                     best_at, best = at, m
@@ -2737,8 +3018,7 @@ def md_tdd_totals(st):
         return []
     out = [f"## {t('md_tdd_totals_head', st)}", "",
            t("tdd_totals", st, scen=sum(td["with_scenario"] for _, td in rows), planned=sum(td["planned"] for _, td in rows),
-             new=sum(int(td["tests_new"] or 0) for _, td in rows),
-             red=sum(1 for _, td in rows if td["red_confirmed"]), n=len(cps)), "",
+             new=sum(int(td["tests_new"] or 0) for _, td in rows)), "",
            t("md_tdd_head", st), "|---|---|---:|---:|---:|---|"]
     for cp, td in rows:
         g = td["green"] or {}
@@ -3147,7 +3427,7 @@ def cmd_plan(a):
     root = find_root()
     st = load(root)
     raw = read_json_arg(a.data, a.file)
-    items = raw.get("checkpoints", raw if isinstance(raw, list) else [])
+    items = raw if isinstance(raw, list) else raw.get("checkpoints", [])
     if not items:
         die(t("plan_empty"))
     started = [c for c in st["checkpoints"] if c["status"] != "pending"]
@@ -3161,12 +3441,39 @@ def cmd_plan(a):
     for k in ("questions", "assumptions", "out_of_scope", "size"):
         if raw.get(k) if isinstance(raw, dict) else None:
             st[k] = raw[k]
+    wave_error = validate_waves(st["checkpoints"])
+    if wave_error:
+        die(wave_error)
     save(root, st)
     write_viewer(root, st)
     print(t("plan_loaded", n=len(items), total=len(st["checkpoints"])))
     for w in plan_warnings(st, st["checkpoints"][base:], whole=not a.append):
         print(w)
     print(next_action(st))
+
+
+def validate_waves(cps):
+    """Checkpoints in the same wave may not depend on each other and may not touch the same files_hint
+    (that is what lets `bf start --wave N` run them side by side). Returns an NL/EN refusal, or None."""
+    waved = [c for c in cps if c.get("wave") is not None]
+    if not waved:
+        return None
+    by_wave = {}
+    for c in waved:
+        by_wave.setdefault(c["wave"], []).append(c)
+    for w, group in by_wave.items():
+        ids = {c["id"] for c in group}
+        for c in group:
+            bad_dep = ids & set(c.get("depends_on") or [])
+            if bad_dep:
+                return t("wave_depends", w=w, cp=c["id"], dep=", ".join(sorted(bad_dep)))
+        seen = {}
+        for c in group:
+            for f in c.get("files_hint") or []:
+                if f in seen and seen[f] != c["id"]:
+                    return t("wave_overlap", w=w, a=seen[f], b=c["id"], f=f)
+                seen[f] = c["id"]
+    return None
 
 
 SMALL_PROJECT_LINES = 1500   # rough rule: fewer lines to change than this is a small project
@@ -3183,7 +3490,8 @@ def plan_warnings(st, new_cps, whole=True):
     except (TypeError, ValueError):
         est = None
     small = size.get("class") == "small" or (est is not None and est < SMALL_PROJECT_LINES)
-    if not size and whole:
+    project_size_set = (st.get("project", {}) or {}).get("size") in SIZE_MODES or is_fast(st)
+    if not size and not project_size_set and whole:
         out.append(t("plan_no_size", st))
     elif small and n > SMALL_PROJECT_MAX_CPS:
         out.append(t("plan_many_small", st, n=n, size=", ".join(f"{k}={v}" for k, v in size.items())))
@@ -3219,11 +3527,19 @@ def cmd_tests(a):
     print(next_action(st))
 
 
-def stages_blocking_plan(st):
-    """What still has to happen before planning may be approved or building may start."""
+def combined_brief_plan(st):
+    """klein/middel/fast runs may combine the brief+plan stop into one: `bf phase awaiting_plan_approval`
+    may be set straight from `awaiting_brief_approval`, and `bf approve` then approves both in one call."""
+    return use_final_gates(st)
+
+
+def stages_blocking_plan(st, from_brief_wait=False):
+    """What still has to happen before planning may be approved or building may start. `from_brief_wait`
+    is set when moving straight from awaiting_brief_approval on a combined run: the brief itself is not
+    yet blocking (it gets approved together with the plan), only design still can be."""
     stg = st.get("stages", {})
     out = []
-    if stg.get("brief", {}).get("status") not in ("approved", "skipped"):
+    if not from_brief_wait and stg.get("brief", {}).get("status") not in ("approved", "skipped"):
         out.append(t("block_brief", st))
     if stg.get("design", {}).get("status") not in ("approved", "not_needed", "skipped"):
         out.append(t("block_design", st))
@@ -3234,9 +3550,16 @@ def cmd_phase(a):
     root = find_root()
     st = load(root)
     if a.phase in ("planning", "awaiting_plan_approval", "building"):
-        blocking = stages_blocking_plan(st)
+        from_brief_wait = (a.phase == "awaiting_plan_approval" and combined_brief_plan(st)
+                           and st["stages"].get("brief", {}).get("status") not in ("approved", "skipped"))
+        blocking = stages_blocking_plan(st, from_brief_wait=from_brief_wait)
         if blocking:
             die(t("cannot_phase", phase=name_of(PHASE_NAMES, a.phase)) + "; ".join(blocking))
+    if a.phase == "awaiting_human_review" and use_final_gates(st):
+        f = get_final(st)
+        pend = [g for g in FINAL_GATES if f[g]["status"] not in GATE_DONE]
+        if pend:
+            die(t("final_open", gates=", ".join(name_of(GATE_NAMES, g, st) for g in pend)))
     set_phase(st, a.phase)
     if a.phase == "awaiting_human_review":
         st.pop("_root", None)
@@ -3253,12 +3576,19 @@ def cmd_approve(a):
     if ph not in APPROVAL_NEXT:
         die(t("nothing_waiting", phase=name_of(PHASE_NAMES, ph)))
     stage, nxt = APPROVAL_NEXT[ph]
+    combined = stage == "plan" and st["stages"].get("brief", {}).get("status") not in ("approved", "skipped") \
+        and combined_brief_plan(st)
     if stage == "plan" and not st["checkpoints"]:
         die(t("approve_no_cps"))
-    if stage == "plan" and stages_blocking_plan(st):
-        die(t("cannot_approve_plan") + "; ".join(stages_blocking_plan(st)))
+    if stage == "plan" and stages_blocking_plan(st, from_brief_wait=combined):
+        die(t("cannot_approve_plan") + "; ".join(stages_blocking_plan(st, from_brief_wait=combined)))
     t0 = now()
-    st.setdefault("approvals", []).append({"stage": stage, "at": t0, "note": a.note or ""})
+    stages_approved = ["brief", "plan"] if combined else [stage]
+    for s in stages_approved:
+        st.setdefault("approvals", []).append({"stage": s, "at": t0, "note": a.note or ""})
+    if combined:
+        st["stages"]["brief"]["status"] = "approved"
+        st["stages"]["brief"]["approved_at"] = t0
     if stage == "plan":
         st["approved_at"] = st.get("approved_at") or t0
         if static_cfg(st).get("checks") is not None:
@@ -3270,29 +3600,27 @@ def cmd_approve(a):
     save(root, st)
     write_viewer(root, st)
     closed = inbox_close(root, st["slug"], "approve", stage, t("note_approved", st, stage=name_of(STAGE_NAMES, stage, st)))
-    print(t("approved_line", st, stage=name_of(STAGE_NAMES, stage, st), nxt=name_of(PHASE_NAMES, nxt, st))
+    stage_label = (name_of(STAGE_NAMES, "brief", st) + " + " + name_of(STAGE_NAMES, "plan", st)) if combined \
+        else name_of(STAGE_NAMES, stage, st)
+    print(t("approved_line", st, stage=stage_label, nxt=name_of(PHASE_NAMES, nxt, st))
           + (t("approved_closed", st, ids=", ".join(closed)) if closed else ""))
     print(next_action(st, root))
 
 
-def cmd_start(a):
-    root = find_root()
-    st = load(root)
-    cp = get_cp(st, a.cp)
-    if st["phase"] != "building":
-        if not st.get("approved_at"):
-            die(t("plan_not_approved", phase=name_of(PHASE_NAMES, st["phase"])))
-        set_phase(st, "building")
+def start_one(root, st, cp, parallel, force):
+    """The checks and bookkeeping for starting a single checkpoint; shared by a plain `bf start` and a
+    `bf start --wave N` that starts several at once."""
     for dep in cp.get("depends_on", []):
         if get_cp(st, dep)["status"] != "passed":
             die(t("depends_on", cp=cp["id"], dep=dep))
     earlier = [c for c in st["checkpoints"] if c["n"] < cp["n"] and c["status"] != "passed"]
-    if earlier and not a.force and not a.parallel:
+    if earlier and not force and not parallel:
         die(t("earlier_cp", cp=earlier[0]["id"]))
-    if a.parallel:
-        running = [c for c in st["checkpoints"] if c["status"] == "in_progress"]
-        if len(running) >= 2:
-            die(t("parallel_max", cp=running[-1]["id"]))
+    if parallel:
+        running = [c for c in st["checkpoints"] if c["status"] == "in_progress" and c["id"] != cp["id"]]
+        limit = max_parallel_of(st)
+        if len(running) >= limit:
+            die(t("parallel_max", cp=running[-1]["id"], n=limit))
         overlap = {f for c in running for f in c.get("files_hint", [])} & set(cp.get("files_hint", []))
         if overlap:
             die(t("parallel_overlap", files=", ".join(sorted(overlap))))
@@ -3301,6 +3629,36 @@ def cmd_start(a):
     cp["status"] = "in_progress"
     cp["started_at"] = cp.get("started_at") or now()
     cp["base_commit"] = cp.get("base_commit") or git(root, "rev-parse", "HEAD")
+
+
+def cmd_start(a):
+    root = find_root()
+    st = load(root)
+    if st["phase"] != "building":
+        if not st.get("approved_at"):
+            die(t("plan_not_approved", phase=name_of(PHASE_NAMES, st["phase"])))
+        set_phase(st, "building")
+    if a.wave is not None:
+        group = [c for c in st["checkpoints"] if c.get("wave") == a.wave]
+        if not group:
+            die(t("wave_empty", w=a.wave))
+        pending = [c for c in group if c["status"] == "pending"]
+        if not pending:
+            die(t("wave_none_pending", w=a.wave))
+        limit = max_parallel_of(st)
+        running = [c for c in st["checkpoints"] if c["status"] == "in_progress"]
+        if len(running) + len(pending) > limit:
+            die(t("wave_max_parallel", w=a.wave, n=len(pending), limit=limit))
+        for cp in pending:
+            start_one(root, st, cp, parallel=True, force=a.force)
+        save(root, st)
+        print(t("wave_started", w=a.wave, ids=", ".join(c["id"] for c in pending)))
+        print(next_action(st))
+        return
+    if not a.cp:
+        die(t("start_cp_or_wave"))
+    cp = get_cp(st, a.cp)
+    start_one(root, st, cp, parallel=a.parallel, force=a.force)
     save(root, st)
     print(t("cp_started", st, cp=cp["id"], title=cp["title"]))
     print(next_action(st))
@@ -3324,7 +3682,58 @@ def findings_refusal(extra, metrics, gate_label, blockers_key="gate_blockers"):
     return None
 
 
+def cmd_gate_final(a):
+    """`bf gate final <review|ui|docs> running|passed|failed|skipped`: a gate over the whole feature diff,
+    used instead of the per-checkpoint review/ui/docs gates when the run uses final gates."""
+    root = find_root()
+    st = load(root)
+    if a.gate not in FINAL_GATES:
+        die(t("final_gate_one_of", gates=", ".join(FINAL_GATES)))
+    f = get_final(st)
+    gs = f[a.gate]
+    reason = a.reason or a.summary
+    if a.status == "skipped":
+        if not reason:
+            die(t("final_skip_reason"))
+        gs["status"] = "skipped"
+        gs["skip_reason"] = reason
+        save(root, st)
+        print(f"final · {name_of(GATE_NAMES, a.gate, st)}: {name_of(STATUS_NAMES, 'skipped', st)}")
+        return
+    extra = read_json_arg(a.data, a.file)
+    att = gs["attempts"][-1] if gs["attempts"] and not gs["attempts"][-1].get("result") else None
+    if att is None:
+        att = {"n": len(gs["attempts"]) + 1, "started_at": now(), "result": None}
+        gs["attempts"].append(att)
+    if a.status == "running":
+        gs["status"] = "running"
+    else:
+        if a.status == "passed":
+            refusal = findings_refusal(extra, {**att.get("metrics", {}), **(extra.get("metrics") or {})},
+                                       name_of(GATE_NAMES, a.gate), blockers_key="final_blockers")
+            if refusal:
+                die(refusal)
+        att["result"] = a.status
+        att["ended_at"] = now()
+        gs["status"] = a.status
+    if a.summary:
+        att["summary"] = a.summary
+    if extra.get("metrics"):
+        att["metrics"] = {**att.get("metrics", {}), **extra["metrics"]}
+    if extra.get("findings"):
+        att["findings"] = extra["findings"]
+    if extra.get("evidence"):
+        att["evidence"] = extra["evidence"]
+    if extra.get("files"):
+        att["files"] = extra["files"]
+    save(root, st)
+    print(f"final · {name_of(GATE_NAMES, a.gate, st)}: {name_of(STATUS_NAMES, gs['status'], st)}")
+
+
 def cmd_gate(a):
+    if a.cp == "final":
+        cmd_gate_final(a)
+        return
     root = find_root()
     st = load(root)
     cp = get_cp(st, a.cp)
@@ -3438,10 +3847,41 @@ def cmd_gate(a):
     print(next_action(st))
 
 
+def cmd_finish_final(a):
+    root = find_root()
+    st = load(root)
+    f = get_final(st)
+    pend = [g for g in FINAL_GATES if f[g]["status"] not in GATE_DONE]
+    if pend:
+        die(t("final_open", gates=", ".join(name_of(GATE_NAMES, g, st) for g in pend)))
+    st["final_ended_at"] = now()
+    save(root, st)
+    print(t("final_done", st))
+
+
+def cp_chat_summary(st, cp, path):
+    """At most 5 lines: what the checkpoint needed to know and where the full report lives."""
+    gates = " ".join(f"{name_of(GATE_NAMES, g, st)}:{name_of(STATUS_NAMES, cp['gates'][g]['status'], st)}" for g in CP_GATES)
+    f = allFindings = [x for g in CP_GATES for a2 in cp["gates"][g]["attempts"] for x in (a2.get("findings") or [])]
+    open_f = sum(1 for x in f if x.get("status", "open") == "open")
+    lines = [t("cp_finished", st, cp=cp["id"], title=cp["title"]), gates]
+    if f:
+        lines.append(t("cp_findings_line", st, n=len(f), open=open_f))
+    lines.append(f"{t('report_l', st)}: {path}")
+    return "\n".join(lines[:5])
+
+
 def cmd_finish(a):
+    if a.cp == "final":
+        cmd_finish_final(a)
+        return
     root = find_root()
     st = load(root)
     cp = get_cp(st, a.cp)
+    if cp.get("wave") is not None:
+        same_wave = [c for c in st["checkpoints"] if c.get("wave") == cp["wave"] and c["n"] < cp["n"] and c["status"] != "passed"]
+        if same_wave:
+            die(t("finish_wave_order", cp=cp["id"], earlier=same_wave[0]["id"]))
     pend = [g for g in CP_GATES if cp["gates"][g]["status"] not in GATE_DONE]
     if pend:
         hint = f" ({static_hint(st, cp)})" if "static" in pend else ""
@@ -3451,23 +3891,31 @@ def cmd_finish(a):
         cur = worktree_state(root)
         if res.get("tree") and cur and cur != res["tree"]:
             die(t("finish_changed", cp=cp["id"]))
+    beh_att = next((x for x in reversed(cp["gates"]["behavior"]["attempts"]) if x.get("result") == "passed"), None)
+    missing_tests_warning = None
+    if beh_att is not None:
+        m = beh_att.get("metrics") or {}
+        if m.get("tests_total") is None or m.get("tests_passed") is None:
+            missing_tests_warning = t("finish_no_test_metrics", cp=cp["id"])
     cp["status"] = "passed"
     cp["ended_at"] = now()
     cp["commit"] = a.commit or git(root, "rev-parse", "HEAD")
     save(root, st)
-    md, path = write_report(root, st, cp["id"])
+    _, path = write_report(root, st, cp["id"])
     st = load(root)
-    if all(c["status"] == "passed" for c in st["checkpoints"]):
+    summary = cp_chat_summary(st, get_cp(st, cp["id"]), path)
+    if missing_tests_warning:
+        print(missing_tests_warning)
+    if all(c["status"] == "passed" for c in st["checkpoints"]) and (not use_final_gates(st) or final_done(st)):
         st["stages"]["docs"]["status"] = "pending"
         set_phase(st, "documenting")
         save(root, st)
-        print(md)
-        print("\n---\n" + t("all_passed", st))
-        print(t("finish_compact_hint", st))
+        print(summary)
+        print("\n" + t("all_passed", st))
     else:
-        print(md)
-        print(f"\n{t('report_l', st)}: {path}")
-        print(t("finish_compact_hint", st))
+        print(summary)
+        if all(c["status"] == "passed" for c in st["checkpoints"]) and use_final_gates(st) and not final_done(st):
+            print(t("cps_done_final_open", st))
 
 
 def cmd_feedback(a):
@@ -3508,6 +3956,9 @@ def cmd_accept(a):
     open_cps = [c["id"] for c in st["checkpoints"] if c["status"] != "passed"]
     if open_cps:
         die(t("accept_open", cps=", ".join(open_cps)))
+    if use_final_gates(st) and not final_done(st):
+        pend = [g for g in FINAL_GATES if (st.get("final") or {}).get(g, {}).get("status") not in GATE_DONE]
+        die(t("accept_final_open", gates=", ".join(name_of(GATE_NAMES, g, st) for g in pend)))
     set_phase(st, "done")
     st["finished_at"] = now()
     save(root, st)
@@ -3620,20 +4071,58 @@ def cmd_context(a):
         print(f"{t('ctx_feature', st)}: " + (t("ctx_recorded", st) + ": " + fc if fc else t("ctx_missing", st)))
         return
     c = st["stages"].setdefault("context", {})
+    warn = None
     if a.project:
-        if not os.path.isfile(os.path.join(root, a.project)) and not os.path.isfile(a.project):
+        src = a.project if os.path.isfile(a.project) else os.path.join(root, a.project)
+        if not os.path.isfile(src):
             die(t("not_found", p=a.project))
         with open(os.path.join(bf_dir(root), "context.json"), "w") as f:
             json.dump({"at": now(), "head": git(root, "rev-parse", "HEAD"), "file": ".buildflow/context.md"}, f)
         c["project_file"] = ".buildflow/context.md"
+        n = len(open(src, errors="replace").read().split())
+        if n > CONTEXT_WORD_SOFT_LIMIT:
+            warn = t("ctx_too_long", st, n=n, limit=CONTEXT_WORD_SOFT_LIMIT)
     if a.feature:
         c["feature_file"] = os.path.relpath(os.path.abspath(a.feature), root)
     if c.get("project_file") and c.get("feature_file"):
         c["status"] = "done"
         c["at"] = now()
     save(root, st)
+    if warn:
+        print(warn)
     print(json.dumps(c, indent=2))
     print(next_action(st))
+
+
+def brief_summary_text(text, limit_words=150):
+    """A deterministic ~150-word summary of the brief: the goal (first paragraph) plus its acceptance
+    criteria (done-when/acceptatie bullets), trimmed to the word budget."""
+    lines = text.replace("\r", "").splitlines()
+    goal_lines, crit_lines, in_crit = [], [], False
+    crit_heading = re.compile(r"^#+\s*(done.when|acceptatie|acceptance|criteria)", re.I)
+    heading = re.compile(r"^#+\s")
+    for ln in lines:
+        if crit_heading.match(ln):
+            in_crit = True
+            continue
+        if heading.match(ln):
+            in_crit = False
+            continue
+        s = ln.strip()
+        if not s:
+            continue
+        if in_crit:
+            crit_lines.append(s)
+        elif not crit_lines and len(" ".join(goal_lines).split()) < 60:
+            goal_lines.append(s)
+    parts = []
+    if goal_lines:
+        parts.append(" ".join(goal_lines))
+    if crit_lines:
+        parts.append("; ".join(l.lstrip("-* ") for l in crit_lines))
+    out = " — ".join(parts) if parts else " ".join(lines).strip()
+    words = out.split()
+    return " ".join(words[:limit_words]) + ("…" if len(words) > limit_words else "")
 
 
 def cmd_brief(a):
@@ -3644,6 +4133,12 @@ def cmd_brief(a):
         die(t("not_found", p=a.file))
     b = st["stages"]["brief"]
     b["file"] = os.path.relpath(src, root)
+    try:
+        summary_path = os.path.join(run_dir(root, st["slug"]), "brief-summary.md")
+        with open(summary_path, "w") as f:
+            f.write(brief_summary_text(open(src, errors="replace").read()) + "\n")
+    except OSError:
+        pass
     b["source"] = "given" if a.given else "brainstorm"
     if a.given:
         # the user handed in a finished spec: that is their approval
@@ -3666,7 +4161,7 @@ def cmd_design(a):
     d = st["stages"]["design"]
     d.setdefault("review", {"status": "pending", "attempts": []})
     if a.action in ("needed", "not-needed"):
-        if st["phase"] not in ("design", "brief", "intake"):
+        if st["phase"] not in ("design", "brief", "intake", "awaiting_brief_approval", "awaiting_plan_approval"):
             die(t("design_before_plan", phase=name_of(PHASE_NAMES, st["phase"])))
         d["needed"] = a.action == "needed"
         d["reason"] = a.reason or ""
@@ -3790,7 +4285,7 @@ def cmd_interrupted(a):
 # block and the role prompt into the Agent call each time.
 
 PROMPT_REF = {
-    "project": "context-scout.md", "feature": "context-scout.md",
+    "project": "context-scout.md", "feature": "context-scout.md", "health": "context-scout.md",
     "system": "design.md", "prototype": "design.md", "review": "design.md",
     "planner": "checkpoint-planner.md", "tests-plan": "test-planner.md",
     "tests": "gate-behavior.md", "implement": "gate-behavior.md", "verify": "gate-behavior.md",
@@ -3801,6 +4296,7 @@ PROMPT_REF = {
     "runner": "checkpoint-runner.md",
 }
 UI_REVIEWER_ROLES = {"ui-visual", "ui-behavior", "ui-review"}
+ROLE_ALIASES = {"ui": "ui-review"}  # short/alternate role spelling accepted by `bf prompt`
 
 
 def extract_role_prompt(role):
@@ -3826,10 +4322,39 @@ def extract_role_prompt(role):
     return "\n".join(block).strip()
 
 
+FEATURE_SECTION_RE = re.compile(r"(?m)^(?=##\s)")
+FEATURE_HEADING_RE = re.compile(r"^##\s.*?—\s*(.+?)\s*$")
+
+
+def filter_feature_sections(text, files_hint):
+    r"""context-feature.md is split into `## <area> — \`path/a\`, \`path/b\`` sections. Keep only the
+    sections whose paths prefix-match one of the checkpoint's files_hint. Returns the filtered text, or
+    None when the file has no such headings (or files_hint matches nothing) — the caller then falls back
+    to the whole file, same as before this existed."""
+    files_hint = files_hint or []
+    parts = FEATURE_SECTION_RE.split(text)
+    if len(parts) <= 1:
+        return None
+    preamble = parts[0] if not parts[0].startswith("## ") else ""
+    kept = []
+    for sec in parts:
+        if not sec.startswith("## "):
+            continue
+        m = FEATURE_HEADING_RE.match(sec.splitlines()[0])
+        if not m:
+            return None  # no paths in the heading: can't filter safely, use the whole file
+        paths = [p.strip(" `") for p in m.group(1).split(",") if p.strip(" `")]
+        if any(fh and (p.startswith(fh) or fh.startswith(p)) for p in paths for fh in files_hint):
+            kept.append(sec)
+    if not kept:
+        return None
+    return (preamble + "".join(kept)).strip()
+
+
 def cmd_prompt(a):
     root = find_root()
     st = load(root)
-    role = a.role.lower()
+    role = ROLE_ALIASES.get(a.role.lower(), a.role.lower())
     scope = a.scope.lower()
     cp = None
     if re.match(r"^(?:cp)?\d+$", scope):
@@ -3854,10 +4379,17 @@ def cmd_prompt(a):
         parts.append(f"Feature: {st.get('title', '')} — {st.get('goal', '')}")
         parts.append(f"Language: {lang_of(st)}. " + t("prompt_lang_note", st))
         slug = st["slug"]
+        brief_summary_rel = f".buildflow/{slug}/brief-summary.md"
+        brief_rel = brief_summary_rel if os.path.isfile(os.path.join(root, brief_summary_rel)) else f".buildflow/{slug}/brief.md"
+        feature_ctx_rel = f".buildflow/{slug}/context-feature.md"
+        feature_ctx_path = os.path.join(root, feature_ctx_rel)
+        feature_ctx_filtered = None
+        if cp and os.path.isfile(feature_ctx_path):
+            feature_ctx_filtered = filter_feature_sections(open(feature_ctx_path, errors="replace").read(), cp.get("files_hint"))
         reads = []
-        for rel in (f".buildflow/{slug}/learnings.md", f".buildflow/{slug}/brief.md",
-                    f".buildflow/{slug}/context-feature.md", ".buildflow/context.md"):
-            if os.path.isfile(os.path.join(root, rel)):
+        for rel in (f".buildflow/{slug}/learnings.md", brief_rel,
+                    feature_ctx_rel if feature_ctx_filtered is None else None, ".buildflow/context.md"):
+            if rel and os.path.isfile(os.path.join(root, rel)):
                 reads.append(rel)
         design_ref = st.get("project", {}).get("design_ref")
         if design_ref and st.get("stages", {}).get("design", {}).get("status") in ("approved", "done"):
@@ -3865,6 +4397,9 @@ def cmd_prompt(a):
         if reads:
             parts.append(t("prompt_read_l", st))
             parts += [f"{i}. {r}" for i, r in enumerate(reads, 1)]
+        if feature_ctx_filtered:
+            parts.append(f"{t('prompt_feature_ctx_l', st)} ({t('prompt_filtered_l', st)}, {feature_ctx_rel}):")
+            parts.append(feature_ctx_filtered)
         facts = {k: v for k, v in (("test_command", st.get("project", {}).get("test_command")),
                                     ("dev_command", st.get("project", {}).get("dev_command")),
                                     ("dev_url", st.get("project", {}).get("dev_url")),
@@ -4330,6 +4865,25 @@ def cmd_serve(a):
     slug = st["slug"]
     d = run_dir(root, slug)
     info = serve_info(root, slug)
+    if a.stop:
+        if not info:
+            print(t("server_not_running", st))
+            sys.exit(1)
+        try:
+            os.kill(info["pid"], signal.SIGTERM)
+        except OSError:
+            pass
+        for _ in range(30):
+            time.sleep(0.1)
+            if not serve_info(root, slug):
+                break
+        sp = os.path.join(d, "serve.json")
+        try:
+            os.remove(sp)
+        except OSError:
+            pass
+        print(t("server_stopped", st, pid=info["pid"]))
+        return
     if a.status:
         extra = {"url": info["url"], "overview_url": f"http://127.0.0.1:{info['port']}/", "port": info["port"], "pid": info["pid"],
                  "started": info.get("started"), "allow_hosts": info.get("allow_hosts") or [],
@@ -4513,9 +5067,29 @@ def cmd_doctor(a):
         print(t("doc_no_session", st))
 
 
+SUBPARSERS = None  # set by main(); used by `bf help <command>`
+
+
+def cmd_help(a):
+    """NL/EN explanation from the catalog plus the argparse usage, for one command or the whole list."""
+    if not a.command:
+        print(t("help_intro"))
+        names = sorted(SUBPARSERS.choices) if SUBPARSERS else []
+        print(", ".join(names))
+        return
+    if not SUBPARSERS or a.command not in SUBPARSERS.choices:
+        die(t("help_unknown", cmd=a.command))
+    if a.command in HELP_NOTES:
+        print(t(f"help_{a.command}"))
+        print()
+    print(SUBPARSERS.choices[a.command].format_help())
+
+
 def main():
+    global SUBPARSERS
     p = argparse.ArgumentParser(prog="bf.py", description=__doc__)
     sub = p.add_subparsers(dest="cmd", required=True)
+    SUBPARSERS = sub
 
     s = sub.add_parser("init", help="start a new run")
     s.add_argument("--title", required=True)
@@ -4591,13 +5165,15 @@ def main():
     s.add_argument("--note")
     s.set_defaults(fn=cmd_approve)
 
-    s = sub.add_parser("start", help="start a checkpoint")
-    s.add_argument("cp")
+    s = sub.add_parser("start", help="start a checkpoint, or a whole wave")
+    s.add_argument("cp", nargs="?", help="required unless --wave is given")
     s.add_argument("--force", action="store_true")
     s.add_argument("--parallel", action="store_true",
-                   help="start alongside another in_progress checkpoint, in a separate git worktree "
-                        "(lean profile only; at most 2 checkpoints active this way, and only when their "
-                        "files_hint do not overlap)")
+                   help="start alongside another in_progress checkpoint, in a separate git worktree, up to "
+                        "max_parallel (default 3; set with `bf project max_parallel=N`), and only when their "
+                        "files_hint do not overlap")
+    s.add_argument("--wave", type=int, help="start every pending checkpoint in this wave at once (each in its "
+                                            "own git worktree), up to max_parallel")
     s.set_defaults(fn=cmd_start)
 
     s = sub.add_parser("gate", help="record a gate result")
@@ -4719,6 +5295,7 @@ def main():
     s.add_argument("--open", action="store_true")
     s.add_argument("--detach", action="store_true", help="start in the background, print the URL once it answers")
     s.add_argument("--status", action="store_true", help="is it running? JSON with the URL; exit 1 when not")
+    s.add_argument("--stop", action="store_true", help="stop a detached server for this run (SIGTERM its pid)")
     s.add_argument("--allow-host", action="append", metavar="HOST",
                    help="also accept requests for this exact host name, e.g. the Tailscale name when "
                         "`tailscale serve` proxies the port (repeatable; also BUILDFLOW_ALLOW_HOSTS, comma-separated). "
@@ -4739,6 +5316,10 @@ def main():
 
     s = sub.add_parser("doctor")
     s.set_defaults(fn=cmd_doctor)
+
+    s = sub.add_parser("help", help="explanation of a command plus its usage")
+    s.add_argument("command", nargs="?")
+    s.set_defaults(fn=cmd_help)
 
     a = p.parse_args()
     global CURRENT_CMD, LANG

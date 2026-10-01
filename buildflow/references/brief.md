@@ -12,9 +12,9 @@ read it, check it against the questions below, ask about real gaps, then record 
 ## Before you ask anything
 
 Have the feature context ready (`bf:context:feature`), or at least started. Never ask
-the user something the code can answer. Use what the scout found: "Leave requests already
-exist in `src/leave/`, but only as a draft status. Is this feature about the approval
-step on top of that?" is a good question; "Do you have a leave module?" is not.
+something the code can answer. Use what the scout found: "Leave requests already exist in
+`src/leave/`, only as a draft status — is this about the approval step on top of that?"
+is a good question; "Do you have a leave module?" is not.
 
 ## The conversation
 
@@ -23,23 +23,21 @@ AskUserQuestion when the options are clear, open questions when they are not. St
 asking once the brief below can be written without guessing. Usually two or three
 rounds.
 
-1. **Problem**: what is going wrong or missing today, for whom, how often, and what it
-   costs them. Push past the solution the user came with to the problem underneath.
-2. **Users and situations**: who uses this, in which moments, on which devices, with
-   which permissions.
-3. **Success**: how we will know it works. Observable outcomes, not features. What does
-   the user do differently afterwards?
-4. **Scope**: what is in, and just as important what is explicitly out. What is the
-   smallest version worth shipping?
-5. **Approaches**: propose two or three genuinely different ways to solve it (different
-   UX flows, a config option instead of a new screen, extending an existing feature
-   instead of a new one). For each: what it looks like, what it costs to build, what it
-   makes harder later. Recommend one and say why. Let the user choose or combine.
+1. **Problem**: what's going wrong or missing today, for whom, how often, what it costs
+   them — push past the solution the user came with to the problem underneath.
+2. **Users and situations**: who uses this, when, on which devices, with which
+   permissions.
+3. **Success**: observable outcomes, not features — what does the user do differently
+   afterwards?
+4. **Scope**: what's in, and just as important what's explicitly out; the smallest
+   version worth shipping.
+5. **Approaches**: two or three genuinely different ways to solve it, each with what it
+   costs and what it makes harder later. Recommend one and say why; let the user choose.
 6. **Constraints and risks**: data, privacy, performance, migrations, other teams,
    deadlines, what must not break.
 7. **Open questions** that stay open: write them down with who decides.
 
-Keep the user's own words where they are precise. Do not pad.
+Keep the user's own words where precise. Don't pad.
 
 ## brief.md
 
@@ -88,12 +86,17 @@ With `lang` en:
 ## Open questions
 ```
 
-Then `bf brief --file .buildflow/<slug>/brief.md`, make sure the live viewer runs
-(`bf serve --status`, else `bf serve --detach`), and in chat give its URL and a five-line
-summary (in the run's language): problem, success, scope, chosen approach, and whether a design step follows.
-Tell the user they can reply with changes or approve, in chat or in the viewer. Start
-`bf wait --timeout 3600` in the background and end your turn (SKILL.md, "The live viewer
-and the stops").
+Also write `.buildflow/<slug>/brief-summary.md`: the brief shortened to ~150 words,
+deterministically (goal + the acceptance/success outcomes, shortened, not a fresh
+summary) — this is what `bf prompt` hands subagents instead of the whole brief. Then
+`bf brief --file .buildflow/<slug>/brief.md` (records the summary too, or ask for it
+explicitly if `bf` doesn't derive it).
 
-On changes: update brief.md, record again with `bf brief --file ...`, show again.
-On approval: `bf approve`.
+No stop of its own — the brief feeds straight into the planner
+(`references/checkpoint-planner.md`, `references/test-planner.md`); the human sees brief
+and plan together at one stop (SKILL.md phase 1). Both must fit one screen: for the brief
+that means the sections above kept tight, no restating. Don't pad to look thorough.
+
+Once the plan is ready too, give the viewer URL and both summaries in chat (SKILL.md
+phase 1's stop). Feedback on the brief: update brief.md and brief-summary.md, record
+again, re-run the planner before showing the stop again. On approval: `bf approve`.

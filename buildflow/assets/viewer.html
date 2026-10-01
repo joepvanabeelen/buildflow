@@ -360,6 +360,7 @@ const T = {
       why:"Why this step",doneWhen:"Done when",plannedTests:"Planned tests",gateResults:"Gate results",attempt:"Attempt",
       noAttempts:"Not run yet.",skipped:"Skipped",commit:"Commit",duration:"Duration",cpCost:"Cost",
       behavior:"Behavior",ui:"UI",review:"Review",docs:"Docs",featureDocs:"Feature documentation",featureDocsIntro:"After the last checkpoint: the documentation of the feature as a whole, checked against the code and the brief.",docFiles:"Documentation files",fromFeedback:"from feedback",
+      wave:"wave",finalGates:"Final gates",finalGatesIntro:"Review, UI and docs run once over the whole feature diff instead of per checkpoint (size small/medium, or the fast route).",
       planIntro:"Each checkpoint is a small, ordered slice of the feature. Earlier checkpoints are simpler, so a wrong decision surfaces while it is still cheap to fix. Nothing gets built until you approve this plan.",
       yourFeedback:"Your feedback on this checkpoint",generalFeedback:"General feedback on the plan",copy:"Copy feedback for Claude",copied:"Feedback copied. Paste it in Claude Code.",
       noFeedback:"No feedback written yet.",byRole:"By role",byCp:"By checkpoint / phase",byModel:"By model",
@@ -392,6 +393,7 @@ const T = {
       why:"Waarom deze stap",doneWhen:"Klaar wanneer",plannedTests:"Geplande tests",gateResults:"Gate-resultaten",attempt:"Poging",
       noAttempts:"Nog niet uitgevoerd.",skipped:"Overgeslagen",commit:"Commit",duration:"Duur",cpCost:"Kosten",
       behavior:"Gedrag",ui:"UI",review:"Review",docs:"Docs",featureDocs:"Documentatie van de feature",featureDocsIntro:"Na de laatste checkpoint: de documentatie van de feature als geheel, gecontroleerd tegen de code en de brief.",docFiles:"Documentatiebestanden",fromFeedback:"uit feedback",
+      wave:"golf",finalGates:"Final-gates",finalGatesIntro:"Review, UI en docs draaien één keer over de hele feature-diff in plaats van per checkpoint (size klein/middel, of de snelle route).",
       planIntro:"Elke checkpoint is een klein, geordend stuk van de feature. De eerste zijn het simpelst, zodat een verkeerde keuze boven water komt zolang die nog goedkoop te herstellen is. Er wordt niets gebouwd voordat jij dit plan goedkeurt.",
       yourFeedback:"Jouw feedback op deze checkpoint",generalFeedback:"Algemene feedback op het plan",copy:"Kopieer feedback voor Claude",copied:"Feedback gekopieerd. Plak het in Claude Code.",
       noFeedback:"Nog geen feedback geschreven.",byRole:"Per rol",byCp:"Per checkpoint / fase",byModel:"Per model",
@@ -454,8 +456,8 @@ Object.assign(T.en, {cpCosts:"Cost & time of this checkpoint",runSoFar:"Run so f
 Object.assign(T.nl, {cpCosts:"Kosten & tijd van deze checkpoint",runSoFar:"Run tot nu toe",activeShort:"actief",cpPassedRun:"checkpoints geslaagd in de run",
   noSplit:"Geen verdeling per rol of model voor deze checkpoint: de kosten zijn gemeten voordat bf die bijhield. Draai `bf.py report <cpNN>` om dit rapport opnieuw te schrijven."});
 Object.assign(T.en, {send:"Send to Claude",copy2:"Copy feedback",sent:"Sent. Claude picks it up during the session.",
-  approve:{brief:"Approve brief",design:"Approve design",plan:"Approve plan",review:"Accept feature"},
-  confirm:{brief:"Approve the brief? Claude then moves on to the design (or straight to planning).",design:"Approve the design? Claude then plans the checkpoints.",plan:"Approve the plan? Claude then starts building.",review:"Accept the feature? This closes the run and writes the final report."},
+  approve:{brief:"Approve brief",design:"Approve design",plan:"Approve plan",briefPlan:"Approve brief + plan",review:"Accept feature"},
+  confirm:{brief:"Approve the brief? Claude then moves on to the design (or straight to planning).",design:"Approve the design? Claude then plans the checkpoints.",plan:"Approve the plan? Claude then starts building.",briefPlan:"Approve brief and plan together? Claude then starts building.",review:"Accept the feature? This closes the run and writes the final report."},
   yes:{approve:"Yes, approve",accept:"Yes, accept"},cancel:"Cancel",
   approveSent:{approve:"Approval sent. Claude picks it up.",accept:"Acceptance sent. Claude closes the run."},
   errPhase:"Not possible: the run is no longer at this step. The page refreshes.",errDup:"Already sent; it is waiting for Claude.",
@@ -470,8 +472,8 @@ Object.assign(T.en, {send:"Send to Claude",copy2:"Copy feedback",sent:"Sent. Cla
     awaiting_plan_approval:"Review the checkpoints below. Send comments per checkpoint or on the whole plan, or approve it here to start building.",
     awaiting_human_review:"Try the feature yourself. Send what should change below (it becomes new checkpoints and learnings), or accept it here."}});
 Object.assign(T.nl, {send:"Stuur naar Claude",copy2:"Kopieer feedback",sent:"Verstuurd. Claude leest het mee tijdens de sessie.",
-  approve:{brief:"Keur brief goed",design:"Keur design goed",plan:"Keur plan goed",review:"Accepteer feature"},
-  confirm:{brief:"Brief goedkeuren? Claude gaat daarna verder met het design (of meteen met plannen).",design:"Design goedkeuren? Claude plant daarna de checkpoints.",plan:"Plan goedkeuren? Claude begint daarna met bouwen.",review:"Feature accepteren? De run wordt afgesloten met het eindrapport."},
+  approve:{brief:"Keur brief goed",design:"Keur design goed",plan:"Keur plan goed",briefPlan:"Keur brief + plan goed",review:"Accepteer feature"},
+  confirm:{brief:"Brief goedkeuren? Claude gaat daarna verder met het design (of meteen met plannen).",design:"Design goedkeuren? Claude plant daarna de checkpoints.",plan:"Plan goedkeuren? Claude begint daarna met bouwen.",briefPlan:"Brief en plan samen goedkeuren? Claude begint daarna met bouwen.",review:"Feature accepteren? De run wordt afgesloten met het eindrapport."},
   yes:{approve:"Ja, keur goed",accept:"Ja, accepteer"},cancel:"Annuleer",
   approveSent:{approve:"Goedkeuring verstuurd. Claude pakt het op.",accept:"Acceptatie verstuurd. Claude sluit de run af."},
   errPhase:"Kan niet: de run staat niet (meer) in deze stap. De pagina wordt ververst.",errDup:"Al verstuurd; het wacht op Claude.",
@@ -499,7 +501,7 @@ Object.assign(T.en, {footer:"buildflow · checkpoints & gates, after Shopify's H
   scenarios:"Scenarios",gwt:["Given","When","Then"],
   scL:{planned:"planned",red:"red confirmed",red_wrong:"red, wrong reason",green:"green"},
   provesL:"proves",doneWhenN:"done when #{n}",noScenario:"no scenario written",
-  tddTotals:"Test-first per checkpoint",tddTotalsLine:"{scen} of {planned} planned tests have a scenario · {nw} new tests · red confirmed in {red} of {n} checkpoints",
+  tddTotals:"Test-first per checkpoint",tddTotalsLine:"{scen} of {planned} planned tests have a scenario · {nw} new tests",
   thPlanned:"planned",thScen:"scenarios",thNew:"new tests",thGreen:"green"});
 Object.assign(T.nl, {footer:"buildflow · checkpoints & gates, naar Shopify's Helix",base:"basis",noData:"Geen buildflow-gegevens in deze pagina.",
   uiScope:"UI-bereik",docsScope:"Docs-bereik",input:"input",cacheWrite:"cache write",unpriced:"Modellen zonder prijs",copyPrompt:"Kopieer:",
@@ -516,7 +518,7 @@ Object.assign(T.nl, {footer:"buildflow · checkpoints & gates, naar Shopify's He
   scenarios:"Scenario's",gwt:["Gegeven","Als","Dan"],
   scL:{planned:"gepland",red:"rood bevestigd",red_wrong:"rood, verkeerde reden",green:"groen"},
   provesL:"bewijst",doneWhenN:"klaar wanneer #{n}",noScenario:"geen scenario geschreven",
-  tddTotals:"Test-first per checkpoint",tddTotalsLine:"{scen} van {planned} geplande tests hebben een scenario · {nw} nieuwe tests · rood bevestigd in {red} van {n} checkpoints",
+  tddTotals:"Test-first per checkpoint",tddTotalsLine:"{scen} van {planned} geplande tests hebben een scenario · {nw} nieuwe tests",
   thPlanned:"gepland",thScen:"scenario's",thNew:"nieuwe tests",thGreen:"groen"});
 // model profile: which model the subagents ran on (bf init --profile)
 Object.assign(T.en, {profileL:"profile",profL:{lean:"lean",thorough:"thorough"},reasonL:"reason",
@@ -827,8 +829,7 @@ function tddTotals(){
   const cps = D.checkpoints||[], rows = cps.map(c => [c, tddOf(c)]);
   if(!rows.some(([,x]) => x.planned || x.red || x.green)) return "";
   const sum = f => rows.reduce((a,[,x]) => a + (+f(x)||0), 0);
-  const line = fill(L.tddTotalsLine, {scen:sum(x=>x.with_scenario), planned:sum(x=>x.planned), nw:sum(x=>x.tests_new),
-    red:rows.filter(([,x]) => x.red_confirmed).length, n:cps.length});
+  const line = fill(L.tddTotalsLine, {scen:sum(x=>x.with_scenario), planned:sum(x=>x.planned), nw:sum(x=>x.tests_new)});
   return `<h3 style="margin:28px 0 6px">${esc(L.tddTotals)}</h3>
     <p class="klein" style="margin-bottom:10px"><b>${esc(line)}</b></p>
     <div class="scroll"><table class="tabel stack"><thead><tr><th>${L.checkpoints}</th><th class="r">${esc(L.thPlanned)}</th><th class="r">${esc(L.thScen)}</th><th class="r">${esc(L.thNew)}</th><th>${esc(L.thGreen)}</th></tr></thead><tbody>
@@ -892,7 +893,7 @@ function cpCard(cp, open){
   const act = cp.id === activeId();
   return `<details class="cp ${cp.status}${act?" actief":""}" ${open||act?"open":""} id="${cp.id}"${act?' aria-current="step"':""}>
     <summary><span class="nr">${cp.n}</span>
-      <div><h3>${act ? `<span class="chip running">▶ ${esc(cp.status==="pending" ? L.nextCp : L.nowCp)}</span> ` : ""}${esc(cp.title)} ${cp.source==="feedback"?`<span class="chip feedback">${L.fromFeedback}</span>`:""}</h3><div class="sub">${inline(cp.summary)}</div></div>
+      <div><h3>${act ? `<span class="chip running">▶ ${esc(cp.status==="pending" ? L.nextCp : L.nowCp)}</span> ` : ""}${esc(cp.title)} ${cp.source==="feedback"?`<span class="chip feedback">${L.fromFeedback}</span>`:""}${cp.wave!=null?` <span class="chip" title="${esc(L.wave)} ${esc(cp.wave)}">${esc(L.wave)} ${esc(cp.wave)}</span>`:""}</h3><div class="sub">${inline(cp.summary)}</div></div>
       <div class="gates">${GATES.map(g=>chip(cp,g)).join("")}</div>
     </summary>
     <div class="cp-body">
@@ -937,6 +938,19 @@ function featureDocsBlock(){
     ${files.length ? `<div class="poging"><div class="poging-kop">${L.docFiles} (${files.length})</div>${files.map(f=>`<div class="klein"><a href="${esc(relLink(f))}"><code>${esc(f)}</code></a></div>`).join("")}</div>` : ""}`;
 }
 
+function finalGatesBlock(){
+  const f = D.final;
+  if(!f) return "";
+  const GS = ["review","ui","docs"];
+  return `<h3 style="margin:28px 0 6px">${L.finalGates}</h3>
+    <p class="klein grijs" style="margin-bottom:10px">${L.finalGatesIntro}</p>
+    <div class="gates" style="margin-bottom:10px">${GS.map(g=>{const s=(f[g]||{}).status||"pending"; const icon=s==="passed"?"✓":s==="failed"?"✕":s==="running"?"●":"";
+      return `<span class="chip ${s}" title="${esc(L.gateTip)} ${esc(g)} · ${esc(statL(s))}">${icon} ${esc(L[g])}</span>`;}).join(" ")}</div>
+    ${GS.map(g=>{const gs=f[g]||{}; const at=gs.attempts||[]; if(!at.length && !gs.skip_reason) return "";
+      return `<div class="poging"><div class="poging-kop">${esc(L[g])} <span class="chip ${gs.status||"pending"}">${esc(statL(gs.status||"pending"))}</span></div>
+        ${gs.skip_reason ? `<p class="klein grijs">${esc(gs.skip_reason)}</p>` : attemptsHtml(at)}</div>`;}).join("")}`;
+}
+
 function progressSection(){
   const cps = D.checkpoints||[];
   if(phaseIdx() < 4 && !cps.some(c=>c.status!=="pending")) return "";
@@ -949,6 +963,7 @@ function progressSection(){
     ${tddTotals()}
     ${staticBlock()}
     ${featureDocsBlock()}
+    ${finalGatesBlock()}
     ${(D.interruptions||[]).length ? `<h3 style="margin:28px 0 10px">${L.interruptions} (${D.interruptions.length})</h3><div class="cps">${D.interruptions.map(x=>`<div class="poging"><div class="poging-kop"><span class="chip ${(x.status||"open")==="open"?"interrupted":""}">↯ ${esc(errLabel(x.error))}</span> <span class="grijs klein">${new Date(x.at).toLocaleString(locale())} · ${esc(L.phase[x.phase]||x.phase||"")} · ${(x.status||"open")==="open" ? esc(L.openL) : `${esc(L.resumedL)} ${x.resumed_at ? esc(hhmm(x.resumed_at)) : ""}${x.resumed_how ? ` (${esc((L.howL||{})[x.resumed_how]||x.resumed_how)})` : ""}`}</span></div><p class="klein grijs">${L.interruptedAttempts}: ${esc((x.attempts||[]).join(", ")||"–")}${x.details?` · ${esc(x.details)}`:""}</p></div>`).join("")}</div>` : ""}
     ${fb.length ? `<h3 style="margin:28px 0 10px">${L.humanFeedback} (${fb.length})</h3><div class="cps">${fb.map((x,i)=>`<div class="poging"><div class="poging-kop">#${i+1} <span class="grijs klein">${new Date(x.at).toLocaleString(locale())}</span></div><p>${inline(x.text)}</p><p class="klein grijs">→ ${(x.checkpoints||[]).join(", ")||"–"}</p></div>`).join("")}</div>` : ""}
   </div></section>`;
@@ -1194,15 +1209,22 @@ function sendBox(btn){
   post(body, btn).then(ok => { if(ok){ t.value = ""; store.set(t.dataset.key, ""); } });
 }
 
+function isCombinedBriefPlan(){
+  // klein/middel/fast runs may skip the separate brief stop: the viewer never shows awaiting_brief_approval
+  // in that case, phase jumps straight to awaiting_plan_approval with the brief stage still unapproved.
+  return D.phase==="awaiting_plan_approval" && stg("brief").status!=="approved" && stg("brief").status!=="skipped";
+}
 function actionsHtml(){
   const stage = STOP_STAGE[D.phase]; if(!stage) return "";
   const typ = stage==="review" ? "accept" : "approve";
+  const combined = stage==="plan" && isCombinedBriefPlan();
+  const label = combined ? "briefPlan" : stage;
   if(INBOX.some(x => x.type===typ && x.stage===stage && x.status!=="handled"))
     return `<div class="acties"><p class="klaar"><span class="pil zwart">✓</span> ${esc(L.approveSent[typ])}</p></div>`;
   if(confirming)
-    return `<div class="acties" role="group" aria-labelledby="bf-vraag"><p class="vraag" id="bf-vraag">${esc(L.confirm[stage])}</p>
+    return `<div class="acties" role="group" aria-labelledby="bf-vraag"><p class="vraag" id="bf-vraag">${esc(L.confirm[label])}</p>
       <p class="knoppen"><button type="button" class="knop zwart" id="bf-ja">${esc(L.yes[typ])}</button><button type="button" class="knop rand klein" id="bf-nee">${esc(L.cancel)}</button></p></div>`;
-  return `<div class="acties"><p class="knoppen"><button type="button" class="knop" id="bf-keur">✓ ${esc(L.approve[stage])}</button></p></div>`;
+  return `<div class="acties"><p class="knoppen"><button type="button" class="knop" id="bf-keur">✓ ${esc(L.approve[label])}</button></p></div>`;
 }
 function inboxHtml(){
   const phaseReview = D.phase==="awaiting_human_review", key = `bf:${D.slug}:fb:msg`;

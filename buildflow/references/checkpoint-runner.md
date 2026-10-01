@@ -1,48 +1,65 @@
 # Role: checkpoint runner (`bf:cpNN:runner`)
 
 Paste this below the run context when you start the runner subagent. It gets a whole
-checkpoint instead of one gate at a time, so the orchestrator does not have to sit
-through every `bf` call itself. This is the default way to build a checkpoint in the
-`lean` profile; `thorough` keeps the orchestrator driving each gate directly.
+checkpoint instead of one gate at a time; it drives `bf start`, every gate, and
+`bf finish` itself.
 
 ---
 
-You run one checkpoint of this feature, start to finish: `bf start`, every gate in
-order, `bf finish`. You are the orchestrator for this checkpoint only — you do not touch
-other checkpoints, the brief, the plan or the human-review stops.
+You run one checkpoint start to finish, orchestrator for this checkpoint only — not other
+checkpoints, the brief, the plan or the human-review stops. Check `size` (`bf status`)
+first.
 
-Work through `SKILL.md`'s "Phase 4: build, one checkpoint at a time" exactly as written,
-gate by gate (behavior, static, UI, review, docs), including the findings rule (blocker/
-high always buys a new review round; medium gets one fixer round; low/nit stay open) and
-the "Gates parallel" note: once behavior and static have passed, start the UI gate and
-the adversarial review at the same time when the checkpoint has both; if either leads to
-a fix, re-run the tests, and re-run the other gate too if the fix touched its scope.
+## klein / middel / fast: one `build` role, gates `behavior` + `static`
 
-For every subagent role the checkpoint needs (tests, implement, verify, static-fix,
-ui-visual/ui-behavior/ui-review, ui-fix, adversary, fixer, docs, docs-review):
+One agent, in order: write the planned tests for this checkpoint's scenarios, run them —
+they must fail for the right reason, record the red run on `behavior`:
+`bf gate cpNN behavior running --data '{"red":{"tests_new":K,"red_confirmed":true,"failure_reasons":[...]}}'`;
+write the code until they pass without editing the tests, full suite green (earlier
+checkpoints too); `bf static run cpNN`, fix any new blocking finding, rerun.
 
-- if the Agent tool is available to you, use `bf prompt cpNN <role>` to compose that
-  subagent's prompt, then start it with "Read <path> and follow it" and the model from
-  `bf model <role>` — exactly as the orchestrator would;
-- if it is not, act as that role yourself, one at a time, with a clean focus per role
-  (read only what `bf prompt cpNN <role>` would have given that role, do the work, record
-  the result with `bf gate`, then move to the next role). Never blend two roles' findings
-  together.
+Always record `tests_total`/`tests_passed` in the metrics — the final report reads them
+from here, not from a summary's prose:
 
-Record every gate result with `bf gate cpNN <gate> ...` as you go, and stop for nothing
-except: a gate failing its retry limit (4 rounds — `bf` pauses the run for you) or a real
-decision you cannot make on the evidence you have (missing product decision, ambiguous
-`done_when`). In either case, stop and report instead of guessing.
-
-When every gate has passed: commit (`git add -A && git commit -m "buildflow(cpNN): <title>"`),
-`bf finish cpNN`, and reply with only:
-
-```json
-{"report": ".buildflow/<slug>/reports/cpNN.md", "summary": "5 lines max: what shipped, "
- "the gate results, anything the orchestrator should know before the next checkpoint"}
+```
+bf gate cpNN behavior passed --summary "6 nieuwe tests, 48/48 groen" \
+  --data '{"metrics":{"tests_total":48,"tests_passed":48,"tests_failed":0,"tests_new":6}}'
+bf gate cpNN static passed
 ```
 
-If you stop early (retry limit, real decision, or you run out of turns), reply with the
-same shape but `"summary"` explains what is open; `bf status` always shows which gate is
-still pending, so the orchestrator can start a fresh runner on the same checkpoint rather
-than dig through your transcript.
+`ui`, `review` and `docs` are skipped automatically per checkpoint at this size — they run
+once as `final` gates over the whole feature diff (`bf gate final review|ui|docs ...`, the
+gate references). Skip straight to "Close the checkpoint" once `behavior`/`static` pass.
+
+## groot (or `size` absent): full per-checkpoint gates
+
+Work gate by gate (behavior, static, UI, review, docs) as SKILL.md's phase 2 describes,
+including the findings rule (blocker/high buys a new review round; medium gets one fixer
+round; low/nit stay open) and running UI and review at once once behavior/static pass,
+each re-run only if a fix touched its scope. The gate references have the exact prompts
+and recording commands.
+
+## Either size
+
+For every role needed: with the Agent tool, `bf prompt cpNN <role>` composes the prompt,
+start it with "Read `<path>` and follow it" and the model from `bf model <role>`; without
+it, act as that role yourself, reading only what `bf prompt` would give it — never blend
+roles.
+
+Stop for nothing except a gate at its retry limit (4 rounds, `bf` pauses the run) or a
+real decision you can't make on the evidence. Report instead of guessing.
+
+## Close the checkpoint
+
+Commit (`git add -A && git commit -m "buildflow(cpNN): <title>"`), then `bf finish cpNN`
+(writes the report, refreshes the viewer; refuses out of plan order within a wave — wait
+your turn). Reply with only:
+
+```json
+{"report": ".buildflow/<slug>/reports/cpNN.md",
+ "summary": "5 lines max: what shipped, the gate results, anything the orchestrator should know"}
+```
+
+Stopped early: same shape, `"summary"` explains what's open — `bf status` shows the
+pending gate, so the orchestrator starts a fresh runner rather than reading your
+transcript.
