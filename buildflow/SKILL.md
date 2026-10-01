@@ -35,10 +35,10 @@ language — commands, paths, code and JSON keys stay as they are. This file sta
 
 ## Fast route: is buildflow worth it here?
 
-At intake, estimate the size of the change. Under roughly 300 lines, say so plainly:
-direct building, without checkpoints and gates, is likely faster — let the user choose.
-Still want buildflow? Set `fast=1`: one checkpoint, gates at the end, one combined stop,
-no design stage unless wanted.
+At intake, estimate the size of the change. Under roughly 300 lines, say so: direct
+building, without checkpoints and gates, is likely faster — let the user choose. Still
+want buildflow? Set `fast=1`: one checkpoint, gates at the end, one combined stop, no
+design stage unless wanted.
 
 ## The tool
 
@@ -76,8 +76,8 @@ read and act; then `bf inbox handled <id> --note "..."`. Timeout: restart `bf wa
 silently. Remote access only when asked: `references/viewer-remote.md`.
 
 `bf` refuses illegal moves (building before plan approval, a gate out of order, failing
-tests, open blocker/high findings, finishing with open gates). Don't work around it — it
-means the work isn't done.
+tests, open blocker/high findings, finishing with open gates). Don't work around it — the
+work isn't done.
 
 ## Subagents
 
@@ -98,7 +98,13 @@ they see.
 1. Parse `$ARGUMENTS` (`--brief`, `--auto`, `--lang`); decide the language now.
 2. `bf runs` + `## Features` in `.buildflow/context.md` show what exists. Ask (one
    AskUserQuestion batch) to continue an open run, extend a feature, start new, or look at
-   a finished run — skip when `$ARGUMENTS` makes it obvious.
+   a finished run — skip when `$ARGUMENTS` makes it obvious. An open run whose feature
+   doesn't clearly match this one: one AskUserQuestion — (a) `bf worktree <slug>`,
+   recommended for parallel work, then tell the user to start a new session there with
+   `/buildflow <feature>`, and end this turn; (b) add as checkpoints to the running plan,
+   only when it genuinely belongs there; (c) park the running one (`--park`) and start
+   here. One run per checkout; the overview spans every worktree; buildflow does not guard
+   merge conflicts between runs.
 3. Git tree clean; branch `buildflow/<slug>`.
 4. `bf init --title ... --goal ... --lang ... --mode ... --profile <lean|thorough>
    --session ${CLAUDE_SESSION_ID}` (lean unless asked for thorough; `--park` pauses an
@@ -151,15 +157,14 @@ wave, so merges land in plan order.
 
 Each runner drives its checkpoint end to end and reports a path plus a **5-line max**
 summary — post that, nothing more; details live in the viewer. Runner stops halfway:
-`bf status` shows the open gate, start a fresh one for the same `cpNN`.
+`bf status` shows the open gate; start a fresh one for the same `cpNN`.
 
 After the last checkpoint, `bf finish` moves to `documenting`. klein/middel/fast: run the
 `final` gates now (`bf gate final review|ui|docs ...`, `gate-review.md`, `gate-ui.md`,
 `gate-docs.md`); `bf accept` requires them closed. groot: still run the feature docs gate
 once (`gate-docs.md`).
 
-A gate failing 4 times pauses the run — ask the user one concrete question with your
-recommendation.
+A gate failing 4 times pauses the run — ask one question with your recommendation.
 
 ## Phase 3: human review
 
@@ -183,10 +188,10 @@ Rate limit, crash, broken-off session mid-gate: read `references/recovery.md` fi
 - Tests are the spec — never weaken, skip or delete one to get a gate green.
 - No gate passes without evidence (test counts, screenshots, verdicts) in `--data
   '{"evidence":[...]}'`.
-- Every finding is recorded, `wontfix` included, with a reason. A repeated kind of
-  finding across checkpoints becomes a learning.
+- Every finding is recorded, `wontfix` included, with a reason. A repeated finding across
+  checkpoints becomes a learning.
 - Keep your own context lean: paths not file contents, short structured subagent results.
 - The Stop hook blocks ending the turn during `building`; need the human mid-build:
   `bf pause --reason "..."` first.
-- Model choice follows the profile; don't switch outside it without asking, except the
-  implementer's reported escalation.
+- Model choice follows the profile; don't switch without asking, except the implementer's
+  reported escalation.

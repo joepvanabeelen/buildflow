@@ -419,13 +419,15 @@ Object.assign(T.en, {allRuns:"All features",overview:"Overview",ovTitle:"Feature
   ovRuns:"Runs",ovFeatures:"Existing product features",ovFeaturesIntro:"What the product already has, from the project context (.buildflow/context.md). A new run can extend one of these.",
   ovNoFeatures:"No Features section in .buildflow/context.md yet. The project scout writes it on the next context refresh.",
   ovNoRuns:"No runs yet. Start one with /buildflow.",ovOpen:"open",ovDone:"done",ovTotal:"runs",ovCost:"total cost",ovActive:"total active time",
-  started:"started",finished:"finished",branch:"branch",openViewer:"Open viewer",activeRun:"active",nowCp:"now",nextCp:"next"});
+  started:"started",finished:"finished",branch:"branch",openViewer:"Open viewer",activeRun:"active",nowCp:"now",nextCp:"next",
+  worktreeLabel:"worktree"});
 Object.assign(T.nl, {allRuns:"Alle features",overview:"Overzicht",ovTitle:"Features gebouwd met buildflow",
   ovIntro:"Elke run in dit project: wat open staat, wat klaar is en wat het kostte. Open een run voor het plan, de gates en de rapporten.",
   ovRuns:"Runs",ovFeatures:"Bestaande features van het product",ovFeaturesIntro:"Wat het product al heeft, uit de projectcontext (.buildflow/context.md). Een nieuwe run kan daar een van uitbreiden.",
   ovNoFeatures:"Nog geen Features-sectie in .buildflow/context.md. De projectverkenner schrijft die bij de volgende verversing van de context.",
   ovNoRuns:"Nog geen runs. Start er een met /buildflow.",ovOpen:"open",ovDone:"klaar",ovTotal:"runs",ovCost:"totale kosten",ovActive:"totale actieve tijd",
-  started:"gestart",finished:"afgerond",branch:"branch",openViewer:"Open viewer",activeRun:"actief",nowCp:"nu",nextCp:"volgende"});
+  started:"gestart",finished:"afgerond",branch:"branch",openViewer:"Open viewer",activeRun:"actief",nowCp:"nu",nextCp:"volgende",
+  worktreeLabel:"worktree"});
 // interruptions (rate limit, API error) are not pauses
 Object.assign(T.en, {interruptedAt:"Interrupted at",resumedAt:"resumed at",waitingResume:"work continues in the background; the run is not paused",
   stillInterrupted:"still marked interrupted",dismiss:"Dismiss",resumedL:"resumed",openL:"open",interruptedChip:"interrupted",
@@ -642,7 +644,18 @@ function activeId(){
   const ph = D.phase==="paused" ? D.paused_from : D.phase;
   const n = ph==="building" && cps.find(x => x.status!=="passed"); return n ? n.id : null;
 }
-function relLink(p){ if(!p) return ""; return /^(https?:|\/)/.test(p) ? p : (D.rel_root||"") + p; }
+function relLink(p){
+  if(!p) return "";
+  if(/^(https?:|\/)/.test(p)) return p;
+  // a run from another worktree is served under /wt/<n>/ (its .buildflow), so rel_root does not resolve there
+  const wt = location.protocol.startsWith("http") && location.pathname.match(/^\/wt\/\d+\//);
+  if(wt && p.startsWith(".buildflow/")) return wt[0] + p.slice(".buildflow/".length);
+  return (D.rel_root||"") + p;
+}
+// over http(s) the overview always lives at the server root (it 302s to .buildflow/index.html), even
+// when this page was fetched via /wt/<n>/<slug>/viewer.html on a sibling worktree's server, where
+// rel_root's relative path does not resolve; file:// still needs the relative path
+function allRunsHref(){ return location.protocol.startsWith("http") ? "/" : (D.rel_root||"") + ".buildflow/index.html"; }
 function stepper(){
   const i = phaseIdx(), dz = stg("design"), b = stg("brief");
   const steps = [["stageContext",0],["brief",1],["design",2],["plan",3],["stageBuild",4],["stageReview",5]];
@@ -741,7 +754,7 @@ function header(){
   return `<div class="topbalk"><div class="wrap"><span>buildflow · <b>${esc(D.slug)}</b></span>${liveBadge()}</div></div>
   <header class="header"><div class="wrap">
     <a class="woordmerk" href="#top"><b>build</b><span>flow</span></a>
-    <a class="terug" href="${esc((D.rel_root||"") + ".buildflow/index.html")}">← ${esc(L.allRuns)}</a>
+    <a class="terug" href="${esc(allRunsHref())}">← ${esc(L.allRuns)}</a>
     <span class="pil ${ph==="done"?"zwart":ph.startsWith("awaiting")?"geel":"rand"}">${esc(L.phase[ph]||ph)}</span>
     ${D.profile ? `<span class="pil rand" title="${esc((L.profTip||{})[D.profile]||"")}">${esc(L.profileL)}: ${esc((L.profL||{})[D.profile]||D.profile)}</span>` : ""}
     ${D.focus ? "" : `<nav class="nav">${(window.__nav||[]).map(([id,lbl])=>`<a href="#${id}">${esc(lbl)}</a>`).join("")}</nav>`}
@@ -1113,12 +1126,19 @@ function bindBoxes(scope){
 // ---- overview of all runs in the project (.buildflow/index.html), same template, own data
 function phasePil(ph){ return `<span class="pil ${ph==="done"?"zwart":String(ph).startsWith("awaiting")?"geel":"rand"}">${esc(L.phase[ph]||ph)}</span>`; }
 function day(s){ return s ? new Date(s).toLocaleDateString(locale()) : "–"; }
+// a run from another git worktree of the same repo links through bf serve's /wt/<n>/ prefix when the
+// overview is served, or through a file:// path into that worktree when index.html is opened directly
+function wtBase(r){
+  if(!r.worktree_path) return "";
+  return location.protocol === "file:" ? ("file://" + r.worktree_path + "/.buildflow/") : ("/wt/" + r.worktree_index + "/");
+}
+function wtHref(r, rel){ return esc(wtBase(r) + rel); }
 function runCard(r){
   const reps = r.reports || {}, cps = r.checkpoints || [];
   const cpReps = cps.filter(c => reps[c.id]);
   return `<article class="run-kaart${r.active?" actief":""}" id="run-${esc(r.slug)}">
-    <div class="run-links">${phasePil(r.phase)}${r.active ? `<span class="pil geel">${esc(L.activeRun)}</span>` : ""}${(r.interruption && r.interruption.status==="open") || (r.interrupted_gates||[]).length ? `<span class="chip interrupted" title="${esc(errLabel(r.interruption && r.interruption.error))} · ${esc(hhmm(r.interruption && r.interruption.at))}">↯ ${esc(L.interruptedChip)} ${esc(hhmm(r.interruption && r.interruption.at))}</span>` : ""}</div>
-    <h3><a href="${esc(r.viewer)}">${esc(r.title)}</a></h3>
+    <div class="run-links">${phasePil(r.phase)}${r.active ? `<span class="pil geel">${esc(L.activeRun)}</span>` : ""}${r.worktree ? `<span class="pil rand" title="${esc(r.worktree_path||"")}">${esc(L.worktreeLabel)}: ${esc(r.worktree)}</span>` : ""}${(r.interruption && r.interruption.status==="open") || (r.interrupted_gates||[]).length ? `<span class="chip interrupted" title="${esc(errLabel(r.interruption && r.interruption.error))} · ${esc(hhmm(r.interruption && r.interruption.at))}">↯ ${esc(L.interruptedChip)} ${esc(hhmm(r.interruption && r.interruption.at))}</span>` : ""}</div>
+    <h3><a href="${wtHref(r, r.viewer)}">${esc(r.title)}</a></h3>
     ${r.goal ? `<p class="klein grijs">${inline(r.goal)}</p>` : ""}
     ${cps.length ? `<div class="rail" aria-hidden="true">${cps.map(c=>`<i class="${esc(c.status)}" title="${esc(c.id)} ${esc(c.title)}"></i>`).join("")}</div>` : ""}
     <dl class="run-meta">
@@ -1129,9 +1149,9 @@ function runCard(r){
       <dt>${esc(L.finished)}</dt><dd>${day(r.finished_at)}</dd>
       <dt>${esc(L.branch)}</dt><dd><code>${esc(r.branch||"–")}</code></dd>
     </dl>
-    <div class="run-links"><a class="knop klein zwart" href="${esc(r.viewer)}">${esc(L.openViewer)}</a>
-      ${reps.final ? `<a class="knop klein rand" href="${esc(reps.final)}">${esc(L.finalReport)}</a>` : ""}</div>
-    ${cpReps.length ? `<div class="run-links"><span class="klein grijs">${esc(L.cpReport)}:</span>${cpReps.map(c=>`<a class="chip ${esc(c.status)}" href="${esc(reps[c.id])}" title="${esc(c.title)}">${esc(c.id)}</a>`).join("")}</div>` : ""}
+    <div class="run-links"><a class="knop klein zwart" href="${wtHref(r, r.viewer)}">${esc(L.openViewer)}</a>
+      ${reps.final ? `<a class="knop klein rand" href="${wtHref(r, reps.final)}">${esc(L.finalReport)}</a>` : ""}</div>
+    ${cpReps.length ? `<div class="run-links"><span class="klein grijs">${esc(L.cpReport)}:</span>${cpReps.map(c=>`<a class="chip ${esc(c.status)}" href="${wtHref(r, reps[c.id])}" title="${esc(c.title)}">${esc(c.id)}</a>`).join("")}</div>` : ""}
   </article>`;
 }
 function renderOverview(){

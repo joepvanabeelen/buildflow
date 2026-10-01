@@ -238,6 +238,7 @@ MSG = {
     # general words
     "then": ("Then", "Daarna"), "next_l": ("next", "volgende stap"), "yes": ("yes", "ja"), "no": ("no", "nee"),
     "active_l": ("active", "actief"), "from_l": ("from", "vanuit"), "none_paren": ("(none)", "(geen)"),
+    "worktree_l": ("worktree", "worktree"),
     "blocking": ("blocking", "blokkerend"), "report_only": ("report only", "alleen rapporteren"),
     "not_available": ("not available", "niet beschikbaar"), "evidence": ("evidence", "bewijs"),
     "findings_l": ("findings", "bevindingen"), "wontfix_l": ("won't fix", "bewust niet opgelost"),
@@ -430,10 +431,19 @@ MSG = {
     # init / runs / plan / tests / phases
     "run_exists": ("run '{slug}' already exists. Use `bf.py use {slug}` to continue it, or --force to overwrite.",
                    "run '{slug}' bestaat al. Ga verder met `bf.py use {slug}`, of overschrijf met --force."),
-    "active_unfinished": ("the active run '{cur}' is not finished (phase {phase}). Continue it (`bf.py use {cur}`), or start this one "
-                          "anyway with --park, which pauses '{cur}' so it can be resumed later.",
-                          "de actieve run '{cur}' is nog niet klaar (fase {phase}). Ga daarmee verder (`bf.py use {cur}`), of start "
-                          "deze toch met --park: dan wordt '{cur}' gepauzeerd en kun je hem later hervatten."),
+    "active_unfinished": ("the active run '{cur}' is not finished (phase {phase}). Continue it (`bf.py use {cur}`), start this one "
+                          "anyway with --park (pauses '{cur}' so it can be resumed later), or run `bf.py worktree <slug>` to build "
+                          "this feature in its own git worktree in parallel.",
+                          "de actieve run '{cur}' is nog niet klaar (fase {phase}). Ga daarmee verder (`bf.py use {cur}`), start "
+                          "deze toch met --park (dan wordt '{cur}' gepauzeerd en kun je hem later hervatten), of gebruik "
+                          "`bf.py worktree <slug>` om deze feature parallel in een eigen git-worktree te bouwen."),
+    "worktree_branch_exists": ("branch '{branch}' already exists. Pick another slug, or check out the existing branch yourself.",
+                               "branch '{branch}' bestaat al. Kies een andere slug, of check de bestaande branch zelf uit."),
+    "worktree_path_exists": ("{path} already exists. Pick another --path.", "{path} bestaat al. Kies een andere --path."),
+    "worktree_failed": ("could not create the worktree: {err}", "kon de worktree niet aanmaken: {err}"),
+    "worktree_created": ("worktree created: {path} (branch {branch})", "worktree aangemaakt: {path} (branch {branch})"),
+    "worktree_next": ("next step: in a new Claude Code session opened in {path}, run `/buildflow <feature>` there",
+                      "volgende stap: open een nieuwe Claude Code-sessie in {path} en start daar `/buildflow <feature>`"),
     "parked_reason": ("parked: started run '{slug}'", "geparkeerd: run '{slug}' gestart"),
     "parked": ("parked '{cur}' (paused from {phase}; resume with `bf.py use {cur}` and `bf.py resume`)",
                "'{cur}' geparkeerd (gepauzeerd vanuit {phase}; hervatten met `bf.py use {cur}` en `bf.py resume`)"),
@@ -629,6 +639,11 @@ MSG = {
     "also_answers": ("also answers as {url} (via your proxy, e.g. `tailscale serve --bg --http={port} http://127.0.0.1:{port}`)",
                      "ook bereikbaar als {url} (via je proxy, bijvoorbeeld `tailscale serve --bg --http={port} http://127.0.0.1:{port}`)"),
     "server_down": ("the server did not come up; see {log}", "de server is niet opgestart; zie {log}"),
+    "server_stale_restart": ("viewer server restarted: newer buildflow version", "viewer-server herstart: nieuwere buildflow-versie"),
+    "foreign_serving": ("already served from another worktree: {url} (overview: {overview}, pid {pid} in {path})",
+                        "wordt al bediend vanuit een andere worktree: {url} (overzicht: {overview}, pid {pid} in {path})"),
+    "foreign_serving_hint": ("use --new to start a separate server for this checkout anyway.",
+                            "gebruik --new om toch een eigen server voor deze checkout te starten."),
     "no_port": ("no free port in {a}..{b}", "geen vrije poort in {a}..{b}"),
     "serving": ("serving {url} (all runs: http://127.0.0.1:{port}/; live viewer; browser actions land in {inbox}). Ctrl-C to stop.",
                 "viewer draait op {url} (alle runs: http://127.0.0.1:{port}/; live viewer; acties uit de browser komen in {inbox}). Stoppen met Ctrl-C."),
@@ -3176,7 +3191,10 @@ def all_runs(root):
     return sorted(out, key=lambda s: s.get("created_at") or "", reverse=True)
 
 
-def run_summary(root, st, active=None):
+def run_summary(root, st, active=None, worktree_path=None, worktree_index=None):
+    """root is the checkout this run actually lives in (the own checkout, or a sibling worktree's path).
+    worktree_path/worktree_index are set only for a run that lives in another worktree of the same repo;
+    `active` (the own checkout's active slug) is never touched by those."""
     cps = st.get("checkpoints", [])
     cost = st.get("cost") or {}
     reports = {k: f"{st['slug']}/{v['html']}" for k, v in (st.get("reports") or {}).items()
@@ -3190,9 +3208,60 @@ def run_summary(root, st, active=None):
             "created_at": st.get("created_at"), "finished_at": st.get("finished_at"), "updated_at": st.get("updated_at"),
             "branch": (st.get("project") or {}).get("branch"), "lang": st.get("lang"),
             "viewer": f"{st['slug']}/viewer.html", "reports": reports,
+            "worktree": os.path.basename(worktree_path) if worktree_path else None,
+            "worktree_path": worktree_path, "worktree_index": worktree_index,
             "interruption": next(({"at": x.get("at"), "error": x.get("error"), "status": x.get("status", "open"),
                                    "resumed_at": x.get("resumed_at")} for x in reversed(st.get("interruptions", []))), None),
             "interrupted_gates": [f"{c['id']}:{g}" for c, g in interrupted_gates(st)]}
+
+
+def other_worktrees(root):
+    """Absolute paths of the repo's other git worktrees (git worktree list --porcelain), sorted for a
+    stable /wt/<n>/ index. [] when root is not a git repo or has no other worktrees."""
+    out = git(root, "worktree", "list", "--porcelain")
+    if not out:
+        return []
+    me = os.path.realpath(root)
+    # a checkout with a separate git dir (a `.git` file pointing elsewhere) is listed by its git dir,
+    # not by the checkout; bf records every checkout it ran in under <git-common-dir>/buildflow-roots
+    common = (git(root, "rev-parse", "--path-format=absolute", "--git-common-dir") or "").strip()
+    known = set()
+    if common:
+        reg = os.path.join(common, "buildflow-roots")
+        try:
+            known = {ln.strip() for ln in open(reg) if ln.strip()}
+        except OSError:
+            pass
+        if me not in known and os.path.isdir(os.path.join(me, ".buildflow")):
+            try:
+                with open(reg, "a") as f:
+                    f.write(me + "\n")
+            except OSError:
+                pass
+    paths = set()
+    for ln in out.splitlines():
+        if ln.startswith("worktree "):
+            paths.add(os.path.realpath(ln[len("worktree "):].strip()))
+    if common:
+        paths.discard(os.path.realpath(common))
+    paths |= {os.path.realpath(k) for k in known if os.path.isdir(k)}
+    paths.discard(me)
+    return sorted(paths)
+
+
+def foreign_runs(root, exclude_slugs):
+    """(state, worktree_path, worktree_index) for runs in sibling worktrees whose slug is not already
+    taken by a run in `root` (or an earlier worktree) -- a run copied into two worktrees shows once,
+    from the own checkout."""
+    out = []
+    seen = set(exclude_slugs)
+    for idx, wt in enumerate(other_worktrees(root)):
+        for st in all_runs(wt):
+            if st["slug"] in seen:
+                continue
+            seen.add(st["slug"])
+            out.append((st, wt, idx))
+    return out
 
 
 FEATURES_HEAD = re.compile(r"^(#{1,6})\s*(?:\d+[.)]\s*)?\**\s*(features|existing features|product features|functionaliteiten)\b",
@@ -3220,8 +3289,12 @@ def overview_payload(root):
     runs = all_runs(root)
     act = active_slug(root)
     cur = next((s for s in runs if s["slug"] == act), runs[0] if runs else None)
+    summaries = [run_summary(root, s, act) for s in runs]
+    summaries += [run_summary(wt, s, None, worktree_path=wt, worktree_index=idx)
+                  for s, wt, idx in foreign_runs(root, {s["slug"] for s in runs})]
+    summaries.sort(key=lambda r: r.get("created_at") or "", reverse=True)
     return {"overview": True, "project": os.path.basename(os.path.abspath(root)), "lang": (cur or {}).get("lang", "en"),
-            "active": act, "generated_at": now(), "runs": [run_summary(root, s, act) for s in runs],
+            "active": act, "generated_at": now(), "runs": summaries,
             "features_text": features_section(root)}
 
 
@@ -3256,6 +3329,34 @@ def write_data_json(root, st):
     d = run_dir(root, st["slug"])
     with open(os.path.join(d, "data.json"), "w") as f:
         json.dump(payload(root, st), f, ensure_ascii=False)
+
+
+def refresh_stale_html(root, slug=None, report=None):
+    """Re-render a run's viewer.html (or, without slug, the overview) when it is older than the viewer
+    template or bf.py, so a page rendered by an earlier buildflow version never outlives an upgrade."""
+    try:
+        newest = max(os.path.getmtime(os.path.join(SKILL_DIR, "assets", "viewer.html")),
+                     os.path.getmtime(os.path.abspath(__file__)))
+        if slug is None:
+            p = os.path.join(bf_dir(root), "index.html")
+            if os.path.isfile(p) and os.path.getmtime(p) < newest:
+                write_overview(root)
+            return
+        if report:
+            if not re.fullmatch(r"[A-Za-z0-9_-]+", report):
+                return
+            p = os.path.join(run_dir(root, slug), "reports", report + ".html")
+        else:
+            p = os.path.join(run_dir(root, slug), "viewer.html")
+        if os.path.isfile(p) and os.path.getmtime(p) < newest:
+            st = load(root, slug, required=False)
+            if st and report:
+                with open(p, "w") as f:  # only the html; the report's content (md, cost) stays as recorded
+                    f.write(render_html(root, st, focus=report))
+            elif st:
+                write_viewer(root, st)
+    except Exception:
+        pass  # a stale page is better than a broken server
 
 
 def write_viewer(root, st):
@@ -3372,6 +3473,45 @@ def cmd_init(a):
     print(next_action(st))
 
 
+def cmd_worktree(a):
+    """Create a sibling git worktree with its own branch, for a feature that should run as its own
+    buildflow run in parallel -- `other_worktrees` picks it up right away (overview, `bf serve`'s
+    /wt/ route), once a run is `bf init`'d there."""
+    root = find_root()
+    slug = slugify(a.slug)
+    branch = f"buildflow/{slug}"
+    base = a.base or "main"
+    path = os.path.abspath(a.path) if a.path else os.path.join(
+        os.path.dirname(os.path.abspath(root)), f"{os.path.basename(os.path.abspath(root))}-{slug}")
+    if git(root, "rev-parse", "--verify", "--quiet", branch):
+        die(t("worktree_branch_exists", branch=branch))
+    if os.path.exists(path):
+        die(t("worktree_path_exists", path=path))
+    try:
+        subprocess.run(["git", "-C", root, "worktree", "add", "-b", branch, path, base],
+                        check=True, capture_output=True, text=True)
+    except FileNotFoundError:
+        die(t("worktree_failed", err="git not found"))
+    except subprocess.CalledProcessError as e:
+        die(t("worktree_failed", err=(e.stderr or e.stdout or "").strip()))
+    common = (git(root, "rev-parse", "--path-format=absolute", "--git-common-dir") or "").strip()
+    if common:
+        reg = os.path.join(common, "buildflow-roots")
+        try:
+            known = {ln.strip() for ln in open(reg) if ln.strip()}
+        except OSError:
+            known = set()
+        rp = os.path.realpath(path)
+        if rp not in known:
+            try:
+                with open(reg, "a") as f:
+                    f.write(rp + "\n")
+            except OSError:
+                pass
+    print(t("worktree_created", slug=slug, path=path, branch=branch))
+    print(t("worktree_next", path=path))
+
+
 def cmd_use(a):
     root = find_root()
     if not os.path.isfile(os.path.join(run_dir(root, a.slug), "state.json")):
@@ -3385,7 +3525,11 @@ def cmd_use(a):
 def cmd_runs(a):
     root = find_root()
     act = active_slug(root)
-    runs = [run_summary(root, s, act) for s in all_runs(root)]
+    own = all_runs(root)
+    runs = [run_summary(root, s, act) for s in own]
+    runs += [run_summary(wt, s, None, worktree_path=wt, worktree_index=idx)
+             for s, wt, idx in foreign_runs(root, {s["slug"] for s in own})]
+    runs.sort(key=lambda r: r.get("created_at") or "", reverse=True)
     if a.json:
         print(json.dumps(runs, indent=2, ensure_ascii=False))
         return
@@ -3395,9 +3539,10 @@ def cmd_runs(a):
     for r in runs:
         ph = name_of(PHASE_NAMES, r["phase"]) + (f" ({t('from_l')} {name_of(PHASE_NAMES, r['paused_from'])})"
                                                   if r["phase"] == "paused" and r.get("paused_from") else "")
+        wt = f"  [{t('worktree_l')}: {r['worktree']}]" if r.get("worktree") else ""
         print(f"{'*' if r['active'] else ' '} {r['slug']:<28} {ph:<24} {r['checkpoints_passed']}/{r['checkpoints_total']} cps  "
               f"{fmt_usd(r['usd']):>8}  {fmt_dur(r['active_seconds']):>8} {t('active_l')}  "
-              f"{(r['created_at'] or '')[:10]} -> {(r['finished_at'] or '')[:10] or '...':<10}  {r['branch'] or '-'}  {r['title']}")
+              f"{(r['created_at'] or '')[:10]} -> {(r['finished_at'] or '')[:10] or '...':<10}  {r['branch'] or '-'}  {r['title']}{wt}")
     p = write_overview(root)
     print(t("overview_line", path=os.path.relpath(p, root) if p else "-"))
 
@@ -4692,6 +4837,33 @@ def serve_info(root, slug):
     return info if ping.get("slug") == slug else None
 
 
+def find_live_server(root, include_self=True):
+    """(server_root, info) of a live bf-server for this project: this checkout's own first (when
+    include_self), else any sibling git worktree's. (None, None) when none is running."""
+    other_worktrees(root)  # side effect: registers `root` under buildflow-roots so siblings find it back
+    if include_self:
+        for st in all_runs(root):
+            info = serve_info(root, st["slug"])
+            if info:
+                return root, info
+    for wt in other_worktrees(root):
+        for st in all_runs(wt):
+            info = serve_info(wt, st["slug"])
+            if info:
+                return wt, info
+    return None, None
+
+
+def wt_index(server_root, this_root):
+    """This checkout's index in `server_root`'s /wt/<n>/ list, or None when it is not (yet) known
+    there."""
+    me = os.path.realpath(this_root)
+    for i, w in enumerate(other_worktrees(server_root)):
+        if w == me:
+            return i
+    return None
+
+
 def file_fp(*paths):
     out = []
     for p in paths:
@@ -4701,6 +4873,12 @@ def file_fp(*paths):
         except OSError:
             out.append("0")
     return ".".join(out)
+
+
+def bf_fingerprint():
+    """mtime+size of this bf.py on disk, stored in serve.json: tells a stale server (started from an
+    older copy, e.g. before the /wt/ route existed) apart from a current one."""
+    return file_fp(os.path.abspath(__file__))
 
 
 def make_handler(root, slug, token, lock, allow_hosts=()):
@@ -4758,6 +4936,89 @@ def make_handler(root, slug, token, lock, allow_hosts=()):
         def _state(self):
             return load(root, slug, required=False)
 
+        def _wt_resolve(self, path):
+            """(troot, tslug, rest_parts) for /wt/<n>/<slug>[/...], the only part of another checkout
+            this server ever reads. No path traversal, no dotfiles, and <slug> must be a real run
+            there (a state.json on disk). None when anything about it does not check out."""
+            parts = [x for x in urllib.parse.unquote(path).split("/") if x]
+            if len(parts) < 3 or parts[0] != "wt" or not parts[1].isdigit():
+                return None
+            wts = other_worktrees(root)
+            idx = int(parts[1])
+            if not (0 <= idx < len(wts)):
+                return None
+            wt_slug, rest = parts[2], parts[3:]
+            if any(x in ("..", ".") or x.startswith(".") for x in rest):
+                return None
+            if not os.path.isfile(os.path.join(run_dir(wts[idx], wt_slug), "state.json")):
+                return None
+            return wts[idx], wt_slug, rest
+
+        def _wt_file(self, path):
+            """Resolve /wt/<n>/<slug>/... to a file inside that run's folder."""
+            r = self._wt_resolve(path)
+            if not r:
+                return None
+            troot, tslug, rest = r
+            base = os.path.abspath(run_dir(troot, tslug))
+            fpath = os.path.abspath(os.path.join(base, *rest)) if rest else base
+            if fpath != base and not fpath.startswith(base + os.sep):
+                return None
+            return fpath if os.path.isfile(fpath) else None
+
+        def _wt_api(self, troot, tslug, sub):
+            """/wt/<n>/<slug>/api/<sub>: the same live-refresh and action endpoints as /api/<sub>, but
+            scoped to that sibling run instead of this server's own one -- so a viewer opened via the
+            /wt/ route (e.g. because `bf serve` reused another worktree's server for this run) stays
+            live: it polls, and can approve/give feedback on, the run it is actually showing."""
+            if sub == "ping":
+                st = load(troot, tslug, required=False)
+                return self._json(200, {"ok": True, "slug": tslug, "phase": st and st.get("phase")})
+            if sub == "version":
+                dd = run_dir(troot, tslug)
+                ip, sp = inbox_paths(troot, tslug)
+                return self._json(200, {"state": file_fp(os.path.join(dd, "data.json")), "inbox": file_fp(ip, sp),
+                                        "overview": file_fp(os.path.join(bf_dir(troot), "overview.json"))})
+            if sub == "inbox":
+                if not self._token_ok():
+                    return self._json(403, {"ok": False, "code": "forbidden", "error": "missing or wrong token"})
+                return self._json(200, {"ok": True, "items": inbox_items(troot, tslug)})
+            return self._json(404, {"ok": False, "code": "not_found", "error": "unknown endpoint"})
+
+        def _refresh_stale(self):
+            path = urllib.parse.unquote(urllib.parse.urlsplit(self.path).path)
+            parts = [x for x in path.split("/") if x]
+            if any(x in (".", "..") for x in parts):
+                return
+            rep = parts[-1][:-5] if len(parts) >= 2 and parts[-2] == "reports" and parts[-1].endswith(".html") else None
+            if parts[:1] == ["wt"] and len(parts) >= 4 and parts[1].isdigit() \
+                    and (parts[-1] == "viewer.html" or rep) and not any(x.startswith(".") for x in parts[2:]):
+                wts = other_worktrees(root)
+                if int(parts[1]) < len(wts):
+                    refresh_stale_html(wts[int(parts[1])], parts[2], rep)
+            elif rep and parts[:1] == [".buildflow"] and len(parts) == 4:
+                refresh_stale_html(root, parts[1], rep)
+            elif parts and parts[-1] == "viewer.html":
+                refresh_stale_html(root, slug)
+            elif path in ("/", "/index.html", "/.buildflow", "/.buildflow/", "/.buildflow/index.html"):
+                refresh_stale_html(root)
+
+        def _send_file(self, fpath, head_only=False):
+            try:
+                size = os.path.getsize(fpath)
+                f = open(fpath, "rb")
+            except OSError:
+                return self.send_error(404)
+            try:
+                self.send_response(200)
+                self.send_header("Content-Type", self.guess_type(fpath))
+                self.send_header("Content-Length", str(size))
+                self.end_headers()
+                if not head_only:
+                    shutil.copyfileobj(f, self.wfile)
+            finally:
+                f.close()
+
         def _allowed(self, path):
             """Project files are served so the viewer's links to prototypes and docs work. From .buildflow/
             only the overview and the run folders (viewers, reports, evidence); no other dot folders
@@ -4781,11 +5042,15 @@ def make_handler(root, slug, token, lock, allow_hosts=()):
             if not self._host_ok():
                 return self.send_error(403)
             path = urllib.parse.urlsplit(self.path).path
+            if path.startswith("/wt/"):
+                fpath = self._wt_file(path)
+                return self._send_file(fpath, head_only=True) if fpath else self.send_error(404)
             if path.startswith("/api/") or not self._allowed(path):
                 return self.send_error(404)
             return super().do_HEAD()
 
         def do_GET(self):
+            self._refresh_stale()
             if not self._host_ok():
                 return self._json(403, {"ok": False, "code": "forbidden", "error": "unknown host"})
             path = urllib.parse.urlsplit(self.path).path
@@ -4802,6 +5067,34 @@ def make_handler(root, slug, token, lock, allow_hosts=()):
                 return self._json(200, {"ok": True, "items": inbox_items(root, slug)})
             if path.startswith("/api/"):
                 return self._json(404, {"ok": False, "code": "not_found", "error": "unknown endpoint"})
+            if path.startswith("/wt/"):
+                r = self._wt_resolve(path)
+                if not r:
+                    return self.send_error(404)
+                troot, tslug, rest = r
+                if rest[:1] == ["api"]:
+                    return self._wt_api(troot, tslug, rest[1] if len(rest) > 1 else "")
+                if not rest or rest == ["viewer.html"]:
+                    if not rest:
+                        self.send_response(302)
+                        self.send_header("Location", path.rstrip("/") + "/viewer.html")
+                        self.send_header("Content-Length", "0")
+                        self.end_headers()
+                        return
+                    # the token only ever lives in the served copy, never in viewer.html on disk
+                    try:
+                        page = open(os.path.join(run_dir(troot, tslug), "viewer.html"), encoding="utf-8").read()
+                    except OSError:
+                        return self.send_error(404)
+                    page = page.replace("<head>", f'<head>\n<meta name="bf-token" content="{token}">', 1).encode()
+                    self.send_response(200)
+                    self.send_header("Content-Type", "text/html; charset=utf-8")
+                    self.send_header("Content-Length", str(len(page)))
+                    self.end_headers()
+                    self.wfile.write(page)
+                    return
+                fpath = self._wt_file(path)
+                return self._send_file(fpath) if fpath else self.send_error(404)
             target = {"/": "/.buildflow/index.html", "/index.html": "/.buildflow/index.html",
                       "/.buildflow": "/.buildflow/index.html", "/.buildflow/": "/.buildflow/index.html",
                       "/viewer.html": base + "viewer.html", base[:-1]: base + "viewer.html",
@@ -4832,7 +5125,14 @@ def make_handler(root, slug, token, lock, allow_hosts=()):
         def do_POST(self):
             if not self._host_ok() or not self._origin_ok():
                 return self._json(403, {"ok": False, "code": "forbidden", "error": "only the local viewer may post"})
-            if urllib.parse.urlsplit(self.path).path != "/api/action":
+            path = urllib.parse.urlsplit(self.path).path
+            troot, tslug = root, slug
+            if path.startswith("/wt/"):
+                r = self._wt_resolve(path)
+                if not r or r[2] != ["api", "action"]:
+                    return self._json(404, {"ok": False, "code": "not_found", "error": "unknown endpoint"})
+                troot, tslug = r[0], r[1]
+            elif path != "/api/action":
                 return self._json(404, {"ok": False, "code": "not_found", "error": "unknown endpoint"})
             if not self._token_ok():
                 return self._json(403, {"ok": False, "code": "forbidden", "error": "missing or wrong token"})
@@ -4847,16 +5147,50 @@ def make_handler(root, slug, token, lock, allow_hosts=()):
             except ValueError:
                 return self._json(400, {"ok": False, "code": "bad_request", "error": "invalid JSON"})
             with lock:
-                st = self._state()
+                st = load(troot, tslug, required=False)
                 if not st:
                     return self._json(500, {"ok": False, "code": "no_run", "error": "run state not found"})
-                code, res = inbox_new_item(st, inbox_items(root, slug), body)
+                code, res = inbox_new_item(st, inbox_items(troot, tslug), body)
                 if code != 200:
                     return self._json(code, res)
-                append_jsonl(inbox_paths(root, slug)[0], res)
+                append_jsonl(inbox_paths(troot, tslug)[0], res)
             return self._json(200, {"ok": True, "item": res})
 
     return H
+
+
+def ensure_fresh(troot, tslug, info):
+    """A live server started from an older bf.py (its serve.json `bf_fingerprint` doesn't match this
+    script's) can't answer newer routes such as /wt/. Restart it on the same port and return the new
+    serve.json once it answers again, or None when it did not come back up."""
+    if info.get("bf_fingerprint") == bf_fingerprint():
+        return info
+    port = info["port"]
+    try:
+        os.kill(info["pid"], signal.SIGTERM)
+    except OSError:
+        pass
+    for _ in range(30):
+        time.sleep(0.1)
+        if not pid_alive(info["pid"]):
+            break
+    try:
+        os.remove(os.path.join(run_dir(troot, tslug), "serve.json"))
+    except OSError:
+        pass
+    env = dict(os.environ, BUILDFLOW_ROOT=troot)
+    log = open(os.path.join(run_dir(troot, tslug), "serve.log"), "a")
+    cmd = [sys.executable, os.path.abspath(__file__), "serve", "--port", str(port)]
+    for h in info.get("allow_hosts") or []:
+        cmd += ["--allow-host", h]
+    subprocess.Popen(cmd, stdout=log, stderr=log, stdin=subprocess.DEVNULL, cwd=troot, env=env,
+                     start_new_session=True)
+    for _ in range(50):
+        time.sleep(0.1)
+        ninfo = serve_info(troot, tslug)
+        if ninfo:
+            return ninfo
+    return None
 
 
 def cmd_serve(a):
@@ -4865,6 +5199,11 @@ def cmd_serve(a):
     slug = st["slug"]
     d = run_dir(root, slug)
     info = serve_info(root, slug)
+    if info and not a.stop and info.get("bf_fingerprint") != bf_fingerprint():
+        ninfo = ensure_fresh(root, slug, info)
+        if ninfo:
+            print(t("server_stale_restart", st))
+            info = ninfo
     if a.stop:
         if not info:
             print(t("server_not_running", st))
@@ -4884,7 +5223,23 @@ def cmd_serve(a):
             pass
         print(t("server_stopped", st, pid=info["pid"]))
         return
+    foreign_root, foreign_info = (None, None)
+    if not info and not a.new:
+        foreign_root, foreign_info = find_live_server(root, include_self=False)
+        if foreign_info and foreign_info.get("bf_fingerprint") != bf_fingerprint():
+            nfinfo = ensure_fresh(foreign_root, foreign_info["slug"], foreign_info)
+            if nfinfo:
+                print(t("server_stale_restart", st))
+            foreign_info = nfinfo
     if a.status:
+        if foreign_info:
+            n = wt_index(foreign_root, root)
+            if n is not None:
+                viewer = f"http://127.0.0.1:{foreign_info['port']}/wt/{n}/{slug}/viewer.html"
+                print(json.dumps({"running": True, "foreign": True, "url": viewer,
+                                   "overview_url": f"http://127.0.0.1:{foreign_info['port']}/",
+                                   "port": foreign_info["port"], "pid": foreign_info["pid"], "path": foreign_root}))
+                sys.exit(0)
         extra = {"url": info["url"], "overview_url": f"http://127.0.0.1:{info['port']}/", "port": info["port"], "pid": info["pid"],
                  "started": info.get("started"), "allow_hosts": info.get("allow_hosts") or [],
                  "remote_urls": [f"http://{h}:{info['port']}/viewer.html" for h in info.get("allow_hosts") or []]} if info else {}
@@ -4901,11 +5256,23 @@ def cmd_serve(a):
         if a.open:
             open_path(info["url"])
         return
+    if foreign_info:
+        n = wt_index(foreign_root, root)
+        if n is not None:
+            viewer = f"http://127.0.0.1:{foreign_info['port']}/wt/{n}/{slug}/viewer.html"
+            print(t("foreign_serving", st, url=viewer, overview=f"http://127.0.0.1:{foreign_info['port']}/",
+                    pid=foreign_info["pid"], path=foreign_root))
+            print(t("foreign_serving_hint", st))
+            if a.open:
+                open_path(viewer)
+            return
     if a.detach:
         # the child reads the same BUILDFLOW_ALLOW_HOSTS; pass the parsed names explicitly as well
         env = dict(os.environ, BUILDFLOW_ROOT=root)
         log = open(os.path.join(d, "serve.log"), "a")
         cmd = [sys.executable, os.path.abspath(__file__), "serve", "--port", str(a.port)]
+        if a.new:
+            cmd.append("--new")
         for h in allow:
             cmd += ["--allow-host", h]
         subprocess.Popen(cmd, stdout=log, stderr=log, stdin=subprocess.DEVNULL, cwd=root, env=env,
@@ -4943,7 +5310,7 @@ def cmd_serve(a):
     fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
     with os.fdopen(fd, "w") as f:
         json.dump({"port": port, "pid": os.getpid(), "token": token, "started": now(), "url": url, "slug": slug,
-                   "allow_hosts": allow}, f)
+                   "allow_hosts": allow, "bf_fingerprint": bf_fingerprint()}, f)
     os.replace(tmp, sp)
 
     def stop(*_):
@@ -5107,6 +5474,13 @@ def main():
     s.add_argument("--redirect-from", help="folder the Claude Code session runs in, when that is not the project root; "
                                            "writes <folder>/.buildflow/redirect so the Stop hook finds this run")
     s.set_defaults(fn=cmd_init)
+
+    s = sub.add_parser("worktree", help="create a sibling git worktree with its own branch, to build a feature "
+                                         "there in parallel (then `bf init` + `/buildflow` in a new session there)")
+    s.add_argument("slug")
+    s.add_argument("--base", default="main", help="branch the new worktree branches from (default: main)")
+    s.add_argument("--path", help="where to create it (default: next to this checkout, <checkout>-<slug>)")
+    s.set_defaults(fn=cmd_worktree)
 
     s = sub.add_parser("runs", help="all runs (features) in this project; also rewrites .buildflow/index.html")
     s.add_argument("--json", action="store_true")
@@ -5296,6 +5670,9 @@ def main():
     s.add_argument("--detach", action="store_true", help="start in the background, print the URL once it answers")
     s.add_argument("--status", action="store_true", help="is it running? JSON with the URL; exit 1 when not")
     s.add_argument("--stop", action="store_true", help="stop a detached server for this run (SIGTERM its pid)")
+    s.add_argument("--new", action="store_true",
+                   help="start a separate server for this checkout even when another worktree of the "
+                        "same project is already serving (default: reuse that one, via /wt/<n>/<slug>/)")
     s.add_argument("--allow-host", action="append", metavar="HOST",
                    help="also accept requests for this exact host name, e.g. the Tailscale name when "
                         "`tailscale serve` proxies the port (repeatable; also BUILDFLOW_ALLOW_HOSTS, comma-separated). "
