@@ -155,6 +155,9 @@ default 3) starts every checkpoint in wave N at once, each in its own git worktr
 `files_hint` and no `depends_on`. `bf finish cpNN` refuses out of plan order within a
 wave, so merges land in plan order.
 
+A runner waiting on a subagent keeps calling `bf wait-agent cpNN` instead of ending its turn
+(the prompt cache expires after 5 minutes of silence; see `references/checkpoint-runner.md`).
+
 Each runner drives its checkpoint end to end and reports a path plus a **5-line max**
 summary — post that, nothing more; details live in the viewer. Runner stops halfway:
 `bf status` shows the open gate; start a fresh one for the same `cpNN`.

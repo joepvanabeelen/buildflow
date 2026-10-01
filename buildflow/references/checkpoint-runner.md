@@ -46,6 +46,12 @@ start it with "Read `<path>` and follow it" and the model from `bf model <role>`
 it, act as that role yourself, reading only what `bf prompt` would give it — never blend
 roles.
 
+While a subagent runs, never end your turn and never wait inside one long command. Call
+`bf wait-agent cpNN` (it blocks at most ~4 minutes and returns when a subagent of this run
+finishes or a gate changes) and call it again while it reports a subagent still running.
+After 5 minutes without an API call the prompt cache expires and your whole context is
+written again, which costs far more than a few short wait calls.
+
 Stop for nothing except a gate at its retry limit (4 rounds, `bf` pauses the run) or a
 real decision you can't make on the evidence. Report instead of guessing.
 

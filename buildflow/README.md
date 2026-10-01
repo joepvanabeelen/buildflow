@@ -77,6 +77,21 @@ behalve testruns en gezondheidscheck — zo draaien ook oudere runs zonder profi
 implementer twee keer op dezelfde gate, dan krijgt de volgende poging het sessiemodel.
 Geen budgetplafond: het profiel en de regels voor reviewrondes bepalen de kosten.
 
+De checkpoint-runner draait in het zuinige profiel op Sonnet. Wil je per rol afwijken, bijvoorbeeld
+de runner op Haiku proberen, zet dan een projectfeit: `bf.py project model_runner=haiku`
+(toegestaan: `haiku`, `sonnet`, `opus`, `inherit`). Zo'n keuze gaat voor op het profiel en de
+runnergrootte. Vergelijk daarna met `bf.py cost` het aantal gate-rondes en de kosten.
+
+## Wachten op een subagent
+
+Een runner die op een achtergrond-subagent wacht, beëindigt zijn beurt niet. Na 5 minuten
+zonder aanroep verloopt de promptcache en schrijft de volgende beurt de hele context opnieuw
+weg, en dat was in de gemeten runs het grootste deel van de runnerkosten. `bf.py wait-agent
+[cpNN]` blokkeert daarom hooguit 4 minuten (nooit langer dan 270 seconden) en keert terug zodra
+een subagent van de run klaar is of een gate verandert. Staat er geen subagent te draaien, dan
+keert het meteen terug. Is er na de wachttijd nog steeds een subagent bezig, dan roept de runner
+het commando opnieuw aan.
+
 ## Taal
 
 Alles wat je leest volgt de taal van de run, vanaf het eerste bericht, inclusief brief.md,

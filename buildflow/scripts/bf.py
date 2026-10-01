@@ -122,7 +122,7 @@ PROFILE_ALIASES = {"lean": "lean", "zuinig": "lean", "thorough": "thorough", "gr
 PROFILE_NAMES = {"lean": ("lean", "zuinig"), "thorough": ("thorough", "grondig")}
 INHERIT = "inherit"
 PROFILE_DEFAULT_MODEL = {"lean": "sonnet", "thorough": INHERIT}
-PROFILE_MODELS = {"lean": {"planner": INHERIT, "adversary": INHERIT, "health": "haiku", "verify": "haiku", "runner": INHERIT},
+PROFILE_MODELS = {"lean": {"planner": INHERIT, "adversary": INHERIT, "health": "haiku", "verify": "haiku", "runner": "sonnet"},
                   "thorough": {"health": "sonnet", "verify": "sonnet"}}
 MODEL_ROLES = ["project", "feature", "system", "prototype", "review", "health", "planner", "tests-plan", "tests", "implement",
                "verify", "static-fix", "ui-visual", "ui-behavior", "ui-review", "ui-fix", "adversary", "fixer", "docs",
@@ -137,6 +137,7 @@ def profile_of(st):
     return st.get("profile") if st.get("profile") in PROFILES else "thorough"
 
 
+MODEL_CHOICES = ("haiku", "sonnet", "opus", INHERIT)
 ECONOMICAL_ROLES = ("runner", "adversary")  # forced to sonnet on klein/middel/fast runs, see use_final_gates below
 
 
@@ -144,6 +145,9 @@ def model_for(st, role, cp=None, gate=None):
     """(model, escalation note) for a subagent role in this run's profile."""
     prof = profile_of(st)
     model = PROFILE_MODELS[prof].get(role, PROFILE_DEFAULT_MODEL[prof])
+    override = str(((st or {}).get("project") or {}).get("model_" + role.replace("-", "_"), "")).strip().lower()
+    if override in MODEL_CHOICES:  # `bf project model_runner=haiku`: an explicit choice wins over profile and size
+        return override, ""
     if role in ECONOMICAL_ROLES and st and (is_fast(st) or size_mode(st) in ("klein", "middel")):
         model = "sonnet"
     g = gate or ESCALATE_GATE.get(role)
@@ -602,6 +606,16 @@ MSG = {
     "session_model": ("session model", "sessiemodel"),
     "model_escalated": ("escalated: the implementer failed {n}x on {gate} in {cp}, so this attempt runs on the session model",
                         "geëscaleerd: de implementer faalde {n}x op {gate} in {cp}, dus deze poging draait op het sessiemodel"),
+    "wait_idle": ("no subagent is running for {scope}; nothing to wait for",
+                  "er draait geen subagent voor {scope}; er is niets om op te wachten"),
+    "wait_state": ("state changed: {what}", "status veranderd: {what}"),
+    "wait_done": ("subagent finished: {what}", "subagent klaar: {what}"),
+    "wait_agent_timeout": ("still running after {sec}s: {what}. Call `bf wait-agent` again; do not end your turn "
+                     "(the prompt cache expires after 5 minutes of silence)",
+                     "nog bezig na {sec}s: {what}. Roep `bf wait-agent` opnieuw aan en beëindig je beurt niet "
+                     "(de promptcache verloopt na 5 minuten stilte)"),
+    "wait_clamped": ("--max lowered to {sec}s so the prompt cache stays warm",
+                     "--max verlaagd naar {sec}s zodat de promptcache warm blijft"),
     "model_unknown_role": ("unknown role '{role}'. Roles: {roles}", "onbekende rol '{role}'. Rollen: {roles}"),
     "model_head": ("model per role (profile {profile}; inherit = leave the Agent call's model field out):",
                    "model per rol (profiel {profile}; inherit = laat het model-veld van de Agent-call weg):"),
@@ -4674,6 +4688,81 @@ def cmd_status(a):
     print(f"{t('next_l', st)}:", next_action(st, root))
 
 
+WAIT_MAX = 270  # seconds: the prompt cache is warm for gaps up to 300s (measured: 100% hits to 300s, 0% from 330s)
+
+
+def subagent_states(st, scope=None):
+    """{agent file: (description, finished)} for subagents of this run's sessions, tagged `bf:<scope>:<role>`
+    (all tags when scope is None). Finished = the last transcript line is an assistant message that ended its turn.
+    Transcripts untouched for over 15 minutes count as abandoned and are left out."""
+    out = {}
+    for sid in st.get("sessions", []):
+        for path in transcript_files(sid)[1]:
+            try:
+                meta = json.load(open(path[:-len(".jsonl")] + ".meta.json"))
+                if time.time() - os.path.getmtime(path) > 900:
+                    continue
+                m = TAG_RE.match(meta.get("description", "") or "")
+                if not m or (scope and m.group(1).lower() != scope):
+                    continue
+                with open(path, "rb") as f:  # only the tail: transcripts get big
+                    f.seek(0, os.SEEK_END)
+                    f.seek(max(0, f.tell() - 65536))
+                    lines = [x for x in f.read().decode("utf-8", "replace").splitlines() if x.strip()]
+                last = None
+                for line in reversed(lines):
+                    try:
+                        last = json.loads(line)
+                        break
+                    except ValueError:
+                        continue
+            except (OSError, ValueError):
+                continue
+            done = bool(last and last.get("type") == "assistant"
+                        and (last.get("message") or {}).get("stop_reason") in ("end_turn", "stop_sequence", "max_tokens"))
+            out[path] = (meta.get("description", "").strip(), done)
+    return out
+
+
+def state_signature(st, scope=None):
+    cps = [c for c in st["checkpoints"] if not scope or c["id"] == scope]
+    return {c["id"]: (c["status"], {g: (v["status"], len(v.get("attempts", []))) for g, v in c["gates"].items()})
+            for c in cps}
+
+
+def cmd_wait_agent(a):
+    """Block until a subagent of this run finishes or a gate/checkpoint state changes, at most --max seconds.
+    A runner that waits on a subagent must keep making short calls: after 5 minutes without an API call the
+    prompt cache expires and the whole context is written again (a large part of a runner's cost)."""
+    root = find_root()
+    st = load(root)
+    scope = norm_cp(a.cp) if a.cp else None
+    limit = min(a.max, WAIT_MAX)
+    if a.max > WAIT_MAX:
+        print(t("wait_clamped", st, sec=WAIT_MAX))
+    before = state_signature(st, scope)
+    running0 = {k: v for k, v in subagent_states(st, scope).items() if not v[1]}
+    label = scope or st["slug"]
+    if not running0:
+        print(t("wait_idle", st, scope=label))
+        return
+    deadline = time.time() + limit
+    while time.time() < deadline:
+        time.sleep(min(3, max(0.0, deadline - time.time())))
+        st = load(root)
+        now_sig = state_signature(st, scope)
+        if now_sig != before:
+            changed = [k for k in now_sig if now_sig[k] != before.get(k)]
+            print(t("wait_state", st, what=", ".join(changed)))
+            return
+        now = subagent_states(st, scope)
+        finished = [v[0] for k, v in now.items() if k in running0 and v[1]]
+        if finished:
+            print(t("wait_done", st, what=", ".join(finished)))
+            return
+    print(t("wait_agent_timeout", st, sec=int(limit), what=", ".join(v[0] for v in running0.values())))
+
+
 def cmd_model(a):
     """Which model a subagent role runs on in this run's profile: the value for the Agent call's `model` field."""
     root = find_root()
@@ -5634,6 +5723,11 @@ def main():
                                              "phase, checkpoint, open gates, last decisions, next step")
     s.set_defaults(fn=cmd_brief_context)
 
+    s = sub.add_parser("wait-agent", help="wait (max 270s) until a subagent of this run finishes or a gate changes; keeps "
+                                    "the prompt cache warm while a runner waits on a subagent")
+    s.add_argument("cp", nargs="?", help="only subagents/gates of this checkpoint (default: the whole run)")
+    s.add_argument("--max", type=int, default=240, help="seconds to wait at most (default 240, capped at 270)")
+    s.set_defaults(fn=cmd_wait_agent)
     s = sub.add_parser("model", help="model per subagent role in this run's profile ('inherit' = leave the Agent call's "
                                      "model field out); with a role: just that model")
     s.add_argument("role", nargs="?")
