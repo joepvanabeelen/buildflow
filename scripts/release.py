@@ -525,6 +525,10 @@ def publiceer(versie, repo, pagina_pad, nieuwe_pagina, waarden, skillcommit, oud
                 return fout(f"stap mislukt: {als_commando(args)}\n{uit.stderr.strip()}\n"
                             + herstelhulp(versie, repo, stappen, klaar, False, oude_main))
             klaar += 1
+            if args is stappen[PUSH]:
+                # Pages start na een push soms zelf geen build; vraag er expliciet om. Mislukt dit
+                # (rechten, rate limit), dan is dat geen reden de release te laten mislukken.
+                draai(["gh", "api", "-X", "POST", f"repos/{repo}/pages/builds"])
     except KeyboardInterrupt:
         print(file=sys.stderr)
         if klaar == 0 and pagina_pad.read_bytes() != nieuwe_pagina.encode("utf-8"):
